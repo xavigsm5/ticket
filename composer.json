@@ -1,0 +1,16 @@
+{
+    "name": "sistema-tickets/municipal",
+    "description": "Sistema de Tickets Municipal con estilo Freshdesk",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "phpmailer/phpmailer": "^6.8",
+        "php-imap/php-imap": "^5.0",
+        "vlucas/phpdotenv": "^5.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "includes/"
+        }
+    }
+}

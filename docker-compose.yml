@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # Aplicación PHP
+  app:
+    build: .
+    container_name: tickets_app
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./uploads:/var/www/html/uploads
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=tickets_municipal
+      - DB_USER=postgres
+      - DB_PASS=postgres123
+    networks:
+      - tickets_network
+
+  # Base de datos PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: tickets_db
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: tickets_municipal
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - tickets_network
+
+  # pgAdmin (Opcional - para administrar la BD)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tickets_pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@municipalidad.cl
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    depends_on:
+      - db
+    networks:
+      - tickets_network
+
+networks:
+  tickets_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
