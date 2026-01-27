@@ -24,8 +24,10 @@ if ($filtro_estado)
     $filtros['estado_id'] = (int) $filtro_estado;
 if ($filtro_busqueda)
     $filtros['busqueda'] = $filtro_busqueda;
-if ($usuario['rol'] === 'funcionario' && $usuario['departamento_id']) {
-    $filtros['departamento_id'] = $usuario['departamento_id'];
+
+// Si es funcionario, solo ve tickets asignados a él
+if ($usuario['rol'] === 'funcionario') {
+    $filtros['asignado_id'] = $usuario['id'];
 }
 
 $tickets = obtenerTickets($filtros, 50);
