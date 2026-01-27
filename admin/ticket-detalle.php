@@ -395,6 +395,7 @@ $respuestas_predefinidas = obtenerRespuestasPredefinidas(null, $usuario['id']);
                                     </select>
                                 </div>
 
+                                <?php if (tieneRol(['admin', 'supervisor'])): ?>
                                 <div class="form-grupo">
                                     <label class="form-label">Asignar a</label>
                                     <select name="asignado_id" class="form-control">
@@ -406,6 +407,7 @@ $respuestas_predefinidas = obtenerRespuestasPredefinidas(null, $usuario['id']);
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
+                                <?php endif; ?>
 
                                 <button type="submit" class="btn btn-primario btn-bloque">
                                     <i class="bi bi-check-lg"></i> Actualizar
@@ -430,6 +432,7 @@ $respuestas_predefinidas = obtenerRespuestasPredefinidas(null, $usuario['id']);
                                 <?php endif; ?>
                             </div>
                         </div>
+                        <?php if (tieneRol(['admin', 'supervisor'])): ?>
                         <div class="sidebar-seccion">
                             <div class="sidebar-seccion-titulo">Acciones Rápidas</div>
                             <form method="POST" action=""
@@ -442,6 +445,7 @@ $respuestas_predefinidas = obtenerRespuestasPredefinidas(null, $usuario['id']);
                                 </button>
                             </form>
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </main>

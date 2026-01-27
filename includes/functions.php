@@ -162,10 +162,22 @@ function crearTicket($datos)
 {
     $db = Database::getInstance();
     $es_anonimo = !empty($datos['es_anonimo']) ? 'true' : 'false';
+    
+    // Buscar técnico asignado automáticamente según la categoría
+    $asignado_id = null;
+    if (!empty($datos['categoria_id'])) {
+        $asignacion = $db->fetch(
+            "SELECT usuario_id FROM categoria_asignacion WHERE categoria_id = ? AND es_principal = TRUE LIMIT 1",
+            [$datos['categoria_id']]
+        );
+        if ($asignacion) {
+            $asignado_id = $asignacion['usuario_id'];
+        }
+    }
 
     $stmt = $db->query(
-        "INSERT INTO tickets (ciudadano_id, categoria_id, prioridad_id, asunto, descripcion, ubicacion_direccion, es_anonimo, numero) VALUES (?, ?, ?, ?, ?, ?, ?, '') RETURNING id, numero",
-        [$datos['ciudadano_id'], $datos['categoria_id'], $datos['prioridad_id'] ?? 2, $datos['asunto'], $datos['descripcion'], $datos['ubicacion_direccion'] ?? null, $es_anonimo]
+        "INSERT INTO tickets (ciudadano_id, categoria_id, prioridad_id, asunto, descripcion, ubicacion_direccion, es_anonimo, asignado_id, numero) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '') RETURNING id, numero",
+        [$datos['ciudadano_id'], $datos['categoria_id'], $datos['prioridad_id'] ?? 2, $datos['asunto'], $datos['descripcion'], $datos['ubicacion_direccion'] ?? null, $es_anonimo, $asignado_id]
     );
     return $stmt->fetch();
 }

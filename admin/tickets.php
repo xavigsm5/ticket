@@ -22,9 +22,9 @@ if (!empty($_GET['departamento']))
 if (!empty($_GET['busqueda']))
     $filtros['busqueda'] = $_GET['busqueda'];
 
-// Si es funcionario, solo ve tickets de su departamento
-if ($usuario['rol'] === 'funcionario' && $usuario['departamento_id']) {
-    $filtros['departamento_id'] = $usuario['departamento_id'];
+// Si es funcionario, solo ve tickets asignados a él
+if ($usuario['rol'] === 'funcionario') {
+    $filtros['asignado_id'] = $usuario['id'];
 }
 
 $tickets = obtenerTickets($filtros, 100);
