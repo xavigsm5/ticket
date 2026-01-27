@@ -209,7 +209,9 @@ function obtenerComentarios($ticket_id)
 function agregarComentario($ticket_id, $usuario_id, $comentario, $es_interno = false)
 {
     $db = Database::getInstance();
-    $db->query("INSERT INTO ticket_comentarios (ticket_id, usuario_id, comentario, es_interno) VALUES (?, ?, ?, ?)", [$ticket_id, $usuario_id, $comentario, $es_interno]);
+    // Convertir booleano a formato PostgreSQL
+    $es_interno_pg = $es_interno ? 'true' : 'false';
+    $db->query("INSERT INTO ticket_comentarios (ticket_id, usuario_id, comentario, es_interno) VALUES (?, ?, ?, ?)", [$ticket_id, $usuario_id, $comentario, $es_interno_pg]);
     $db->query("UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [$ticket_id]);
     return true;
 }
