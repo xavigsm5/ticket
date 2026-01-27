@@ -1,3 +1,5 @@
+SET client_encoding = 'UTF8';
+
 -- ============================================
 -- SISTEMA DE TICKETS MUNICIPAL
 -- Esquema de Base de Datos PostgreSQL

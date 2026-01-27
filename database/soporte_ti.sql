@@ -1,3 +1,5 @@
+SET client_encoding = 'UTF8';
+
 -- ============================================
 -- MESA DE AYUDA TI - ÁREA DE INFORMÁTICA
 -- Configuración específica para Soporte Técnico

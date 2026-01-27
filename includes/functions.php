@@ -2,6 +2,12 @@
 /**
  * Funciones del Sistema de Tickets Municipal
  */
+
+// Establecer charset UTF-8 para todas las páginas
+if (headers_sent() === false) {
+    header('Content-Type: text/html; charset=utf-8');
+}
+
 require_once __DIR__ . '/../config/database.php';
 
 function iniciarSesionSegura()
@@ -41,20 +47,44 @@ function crearNotificacion($usuario_id, $titulo, $mensaje, $tipo = 'info', $tick
 function contarNotificacionesNoLeidas($usuario_id)
 {
     $db = Database::getInstance();
-    $res = $db->fetch("SELECT COUNT(*) as total FROM notificaciones WHERE usuario_id = ? AND leida = FALSE", [$usuario_id]);
-    return $res['total'];
+    $result = $db->fetch("SELECT COUNT(*) as total FROM notificaciones WHERE usuario_id = ? AND leido = FALSE", [$usuario_id]);
+    return $result['total'] ?? 0;
 }
 
-function obtenerNotificaciones($usuario_id, $limit = 10)
+function obtenerNotificaciones($usuario_id, $solo_no_leidas = false, $limite = 20)
 {
     $db = Database::getInstance();
-    return $db->fetchAll("SELECT * FROM notificaciones WHERE usuario_id = ? ORDER BY created_at DESC LIMIT ?", [$usuario_id, $limit]);
+    $where = "WHERE usuario_id = ?";
+    if ($solo_no_leidas) {
+        $where .= " AND leido = FALSE";
+    }
+
+    return $db->fetchAll("
+        SELECT n.*, t.numero as ticket_numero
+        FROM notificaciones n
+        LEFT JOIN tickets t ON n.ticket_id = t.id
+        $where
+        ORDER BY created_at DESC
+        LIMIT $limite
+    ", [$usuario_id]);
 }
 
+function marcarNotificacionLeida($notificacion_id)
+{
+    $db = Database::getInstance();
+    $db->query("UPDATE notificaciones SET leido = TRUE WHERE id = ?", [$notificacion_id]);
+}
+
+function marcarTodasNotificacionesLeidas($usuario_id)
+{
+    $db = Database::getInstance();
+    $db->query("UPDATE notificaciones SET leido = TRUE WHERE usuario_id = ?", [$usuario_id]);
+}
+
+// Alias para compatibilidad
 function marcarNotificacionesLeidas($usuario_id)
 {
-    $db = Database::getInstance();
-    $db->query("UPDATE notificaciones SET leida = TRUE WHERE usuario_id = ?", [$usuario_id]);
+    marcarTodasNotificacionesLeidas($usuario_id);
 }
 
 function tieneRol($roles)
@@ -238,4 +268,13 @@ function respuestaJson($data, $codigo = 200)
     header('Content-Type: application/json');
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+function registrarHistorial($ticket_id, $usuario_id, $accion, $descripcion, $valor_anterior = null, $valor_nuevo = null)
+{
+    $db = Database::getInstance();
+    $db->query(
+        "INSERT INTO ticket_historial (ticket_id, usuario_id, accion, descripcion, valor_anterior, valor_nuevo) VALUES (?, ?, ?, ?, ?, ?)",
+        [$ticket_id, $usuario_id, $accion, $descripcion, $valor_anterior, $valor_nuevo]
+    );
 }
