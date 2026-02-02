@@ -1,0 +1,23 @@
+# Variables de entorno - NUNCA subir a GitHub
+.env
+
+# Dependencias de Composer
+/vendor/
+
+# Archivos subidos por usuarios
+/uploads/attachments/*
+!/uploads/attachments/.gitkeep
+
+# Logs
+*.log
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
