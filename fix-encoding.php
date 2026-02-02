@@ -25,7 +25,7 @@ try {
     $correcciones = [
         // Vocales con tilde
         '??n' => 'ón',      // Capacitación, Configuración, Instalación, Conexión, Gestión
-        '??a' => 'ía',      // Telefonía, Contraseña (a veces)
+        '??a' => 'ía',      // Telefonía, Contraseña 
         '??s' => 'ás',      // físicos
         '??c' => 'éc',      // técnico
         '??' => 'ó',        // Olvidó

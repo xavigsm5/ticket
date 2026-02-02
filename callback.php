@@ -36,16 +36,17 @@ if (empty($clientId) || empty($clientSecret) || empty($tenantId) || empty($redir
     exit;
 }
 
-// Crear proveedor Azure
+// Crear proveedor Azure (multi-tenant)
 $provider = new Azure([
     'clientId'                => $clientId,
     'clientSecret'            => $clientSecret,
     'redirectUri'             => $redirectUri,
-    'tenant'                  => $tenantId,
-    'urlAuthorize'            => "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/authorize",
-    'urlAccessToken'          => "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
+    'tenant'                  => 'common', // Usar 'common' para multi-tenant
+    'urlAuthorize'            => "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    'urlAccessToken'          => "https://login.microsoftonline.com/common/oauth2/v2.0/token",
     'urlResourceOwnerDetails' => 'https://graph.microsoft.com/v1.0/me',
-    'scopes'                  => ['openid', 'profile', 'email', 'User.Read'],
+    'scopes'                  => ['openid', 'profile', 'email', 'User.Read', 'Mail.Send'],
+    'defaultEndPointVersion'  => '2.0',
 ]);
 
 try {
@@ -59,7 +60,8 @@ try {
         // Obtener URL de autorización y redirigir
         $authorizationUrl = $provider->getAuthorizationUrl([
             'state' => $state,
-            'scope' => ['openid', 'profile', 'email', 'User.Read'],
+            'scope' => ['openid', 'profile', 'email', 'User.Read', 'Mail.Send'],
+            'prompt' => 'consent', // Forzar pantalla de consentimiento
         ]);
         
         header('Location: ' . $authorizationUrl);
@@ -82,6 +84,11 @@ try {
             'code' => $_GET['code']
         ]);
         
+        // Extraer datos del token
+        $tokenValue = $accessToken->getToken();
+        $refreshToken = $accessToken->getRefreshToken();
+        $expiresAt = $accessToken->getExpires(); // timestamp Unix
+        
         // Obtener información del usuario desde Microsoft Graph
         $me = $provider->get('https://graph.microsoft.com/v1.0/me', $accessToken);
         
@@ -97,10 +104,19 @@ try {
             exit;
         }
         
-        // Validar que sea del dominio permitido
-        $dominioPermitido = '@quintanormal.cl';
-        if (!str_ends_with($email, $dominioPermitido)) {
-            mostrarError("Solo se permite el acceso con cuentas del dominio {$dominioPermitido}");
+        // Validar que sea de un dominio permitido
+        $dominiosPermitidos = ['@quintanormal.cl', '@municipalidad.cl'];
+        $dominioValido = false;
+        
+        foreach ($dominiosPermitidos as $dominio) {
+            if (str_ends_with($email, $dominio)) {
+                $dominioValido = true;
+                break;
+            }
+        }
+        
+        if (!$dominioValido) {
+            mostrarError("Solo se permite el acceso con cuentas institucionales (@quintanormal.cl o @municipalidad.cl)");
             exit;
         }
         
@@ -130,6 +146,9 @@ try {
             $_SESSION['usuario_rol'] = $usuario['rol'];
             $_SESSION['usuario_nombre'] = $usuario['nombres'] . ' ' . $usuario['apellidos'];
             
+            // Guardar o actualizar tokens OAuth2
+            guardarTokensOAuth($db, $usuario['id'], $tokenValue, $refreshToken, $expiresAt);
+            
             // Actualizar último acceso
             $db->query(
                 "UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?",
@@ -147,8 +166,8 @@ try {
             $passwordAleatorio = bin2hex(random_bytes(16));
             $passwordHash = password_hash($passwordAleatorio, PASSWORD_DEFAULT);
             
-            // Generar RUT temporal único
-            $rutTemporal = 'AZURE-' . time() . '-' . random_int(1000, 9999);
+            // Generar RUT temporal único (máximo 12 caracteres)
+            $rutTemporal = 'AZ' . substr(time(), -8) . rand(10, 99);
             
             // Insertar nuevo usuario
             $sql = "INSERT INTO usuarios (rut, email, password, nombres, apellidos, rol, activo, ultimo_acceso)
@@ -171,6 +190,9 @@ try {
                 $_SESSION['usuario_rol'] = 'funcionario';
                 $_SESSION['usuario_nombre'] = $nombres . ' ' . $apellidos;
                 
+                // Guardar tokens OAuth2 del nuevo usuario
+                guardarTokensOAuth($db, $nuevoUsuario['id'], $tokenValue, $refreshToken, $expiresAt);
+                
                 // Redirigir al dashboard de funcionario
                 header('Location: /admin/dashboard.php');
                 exit;
@@ -192,6 +214,41 @@ try {
     error_log('Azure Login Error: ' . $e->getMessage());
     mostrarError('Ocurrió un error durante el inicio de sesión. Por favor intente nuevamente.');
     exit;
+}
+
+/**
+ * Guarda o actualiza los tokens OAuth2 del usuario en la base de datos
+ */
+function guardarTokensOAuth($db, $usuario_id, $accessToken, $refreshToken, $expiresAt) {
+    try {
+        // Convertir timestamp Unix a formato de PostgreSQL
+        $expiresAtDate = date('Y-m-d H:i:s', $expiresAt);
+        
+        // Verificar si ya existe un registro
+        $existente = $db->fetch(
+            "SELECT id FROM oauth_tokens WHERE usuario_id = ?",
+            [$usuario_id]
+        );
+        
+        if ($existente) {
+            // Actualizar tokens existentes
+            $db->query(
+                "UPDATE oauth_tokens 
+                 SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP 
+                 WHERE usuario_id = ?",
+                [$accessToken, $refreshToken, $expiresAtDate, $usuario_id]
+            );
+        } else {
+            // Insertar nuevos tokens
+            $db->query(
+                "INSERT INTO oauth_tokens (usuario_id, access_token, refresh_token, expires_at) 
+                 VALUES (?, ?, ?, ?)",
+                [$usuario_id, $accessToken, $refreshToken, $expiresAtDate]
+            );
+        }
+    } catch (Exception $e) {
+        error_log('Error al guardar tokens OAuth: ' . $e->getMessage());
+    }
 }
 
 /**

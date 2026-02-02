@@ -179,7 +179,181 @@ function crearTicket($datos)
         "INSERT INTO tickets (ciudadano_id, categoria_id, prioridad_id, asunto, descripcion, ubicacion_direccion, es_anonimo, asignado_id, numero) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '') RETURNING id, numero",
         [$datos['ciudadano_id'], $datos['categoria_id'], $datos['prioridad_id'] ?? 2, $datos['asunto'], $datos['descripcion'], $datos['ubicacion_direccion'] ?? null, $es_anonimo, $asignado_id]
     );
-    return $stmt->fetch();
+    
+    $ticketCreado = $stmt->fetch();
+    
+    // Enviar notificación por correo a funcionarios de TI
+    if ($ticketCreado) {
+        enviarNotificacionNuevoTicketATI($ticketCreado, $datos);
+    }
+    
+    return $ticketCreado;
+}
+
+/**
+ * Enviar notificación por correo al funcionario asignado y administrador
+ */
+function enviarNotificacionNuevoTicketATI($ticket, $datos)
+{
+    try {
+        $db = Database::getInstance();
+        
+        // Obtener información del ciudadano/creador
+        $creador = $db->fetch(
+            "SELECT nombres, apellidos, email, rol FROM usuarios WHERE id = ?",
+            [$datos['ciudadano_id']]
+        );
+        
+        // Obtener categoría del ticket
+        $categoria = $db->fetch(
+            "SELECT nombre FROM categorias WHERE id = ?",
+            [$datos['categoria_id']]
+        );
+        
+        // Obtener prioridad
+        $prioridad = $db->fetch(
+            "SELECT nombre, color FROM prioridades WHERE id = ?",
+            [$datos['prioridad_id'] ?? 2]
+        );
+        
+        // Obtener correos de destinatarios
+        $correosFuncionarios = [];
+        
+        // 1. Buscar el ticket completo para obtener el asignado_id
+        $ticketCompleto = $db->fetch(
+            "SELECT asignado_id FROM tickets WHERE id = ?",
+            [$ticket['id']]
+        );
+        
+        // 2. Si hay un funcionario asignado, agregarlo
+        if ($ticketCompleto && $ticketCompleto['asignado_id']) {
+            $funcionarioAsignado = $db->fetch(
+                "SELECT email FROM usuarios WHERE id = ? AND activo = TRUE",
+                [$ticketCompleto['asignado_id']]
+            );
+            if ($funcionarioAsignado) {
+                $correosFuncionarios[] = $funcionarioAsignado['email'];
+            }
+        }
+        
+        // 3. Agregar el administrador principal
+        $admin = $db->fetch(
+            "SELECT email FROM usuarios WHERE rol = 'admin' AND activo = TRUE ORDER BY id ASC LIMIT 1"
+        );
+        if ($admin && !in_array($admin['email'], $correosFuncionarios)) {
+            $correosFuncionarios[] = $admin['email'];
+        }
+        
+        // Si no hay destinatarios, salir
+        if (empty($correosFuncionarios)) {
+            error_log("No se encontraron destinatarios para notificar el ticket #{$ticket['numero']}");
+            return;
+        }
+        
+        // Preparar el contenido del correo
+        $nombreCreador = $creador ? ($creador['nombres'] . ' ' . $creador['apellidos']) : 'Usuario';
+        $emailCreador = $creador['email'] ?? '';
+        $nombreCategoria = $categoria['nombre'] ?? 'Sin categoría';
+        $nombrePrioridad = $prioridad['nombre'] ?? 'Normal';
+        $colorPrioridad = $prioridad['color'] ?? '#6c757d';
+        
+        $asunto = "Nuevo Ticket #{$ticket['numero']} - {$datos['asunto']}";
+        
+        $cuerpo = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: #0d6efd; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+                .content { background: #f8f9fa; padding: 20px; border: 1px solid #dee2e6; }
+                .ticket-info { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid {$colorPrioridad}; }
+                .label { font-weight: bold; color: #495057; }
+                .btn { display: inline-block; padding: 10px 20px; background: #0d6efd; color: white; text-decoration: none; border-radius: 5px; margin-top: 15px; }
+                .footer { text-align: center; color: #6c757d; font-size: 12px; margin-top: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h2>🎫 Nuevo Ticket Creado</h2>
+                </div>
+                <div class='content'>
+                    <div class='ticket-info'>
+                        <p><span class='label'>Número de Ticket:</span> #{$ticket['numero']}</p>
+                        <p><span class='label'>Asunto:</span> {$datos['asunto']}</p>
+                        <p><span class='label'>Categoría:</span> {$nombreCategoria}</p>
+                        <p><span class='label'>Prioridad:</span> <span style='color: {$colorPrioridad}; font-weight: bold;'>{$nombrePrioridad}</span></p>
+                        <p><span class='label'>Solicitante:</span> {$nombreCreador} ({$emailCreador})</p>
+                        <hr style='border: none; border-top: 1px solid #dee2e6; margin: 15px 0;'>
+                        <p><span class='label'>Descripción:</span></p>
+                        <p style='background: #e9ecef; padding: 10px; border-radius: 4px;'>" . nl2br(htmlspecialchars($datos['descripcion'])) . "</p>
+                    </div>
+                    <a href='http://localhost:8080/admin/ticket-detalle.php?id={$ticket['id']}' class='btn'>Ver Ticket Completo</a>
+                </div>
+                <div class='footer'>
+                    <p>Sistema de Tickets - Mesa de Ayuda Municipal</p>
+                    <p>Este es un correo automático, por favor no responder.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+        
+        // Determinar método de envío según el rol del creador
+        require_once __DIR__ . '/MailHandler.php';
+        $mailHandler = new MailHandler();
+        
+        // Si el creador es funcionario y tiene tokens OAuth2, enviar desde su cuenta con su firma
+        if ($creador && in_array($creador['rol'], ['funcionario', 'admin', 'supervisor'])) {
+            // Verificar si el funcionario tiene tokens OAuth2
+            $tieneTokens = $db->fetch(
+                "SELECT id FROM oauth_tokens WHERE usuario_id = ?",
+                [$datos['ciudadano_id']]
+            );
+            
+            if ($tieneTokens) {
+                // Enviar desde la cuenta del funcionario usando Microsoft Graph API
+                // Esto incluirá automáticamente la firma de Outlook del usuario
+                error_log("Enviando notificación de ticket #{$ticket['numero']} desde cuenta del funcionario ID: {$datos['ciudadano_id']}");
+                
+                // Enviar al primer destinatario con los demás en CC
+                $destinatarioPrincipal = array_shift($correosFuncionarios);
+                $envioExitoso = $mailHandler->enviarCorreoDesdeUsuario(
+                    $datos['ciudadano_id'],
+                    $destinatarioPrincipal,
+                    $asunto,
+                    $cuerpo,
+                    $correosFuncionarios // Los demás en CC
+                );
+                
+                if ($envioExitoso) {
+                    error_log("Notificación enviada exitosamente desde cuenta del funcionario");
+                } else {
+                    error_log("Error al enviar desde cuenta del funcionario, usando método SMTP de respaldo");
+                    // Fallback a SMTP genérico
+                    foreach (array_merge([$destinatarioPrincipal], $correosFuncionarios) as $correo) {
+                        $mailHandler->enviarCorreo($correo, $asunto, $cuerpo);
+                    }
+                }
+                return;
+            }
+        }
+        
+        // Envío por defecto: usar SMTP genérico (para ciudadanos o funcionarios sin OAuth)
+        error_log("Enviando notificación de ticket #{$ticket['numero']} usando SMTP genérico");
+        foreach ($correosFuncionarios as $correo) {
+            $mailHandler->enviarCorreo($correo, $asunto, $cuerpo);
+        }
+        
+        error_log("Notificación de ticket #{$ticket['numero']} enviada a: " . implode(', ', $correosFuncionarios));
+        
+    } catch (Exception $e) {
+        error_log("Error enviando notificación de ticket: " . $e->getMessage());
+        // No detener la creación del ticket si falla el correo
+    }
 }
 
 function actualizarTicket($id, $datos)

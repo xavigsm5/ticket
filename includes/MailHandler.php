@@ -128,50 +128,102 @@ class MailHandler
         return $this->pdo->fetch("SELECT * FROM usuarios WHERE email = ?", [$email]);
     }
 
+    // Configuración SMTP Microsoft 365 (cuenta institucional)
+    private const SMTP_HOST = 'smtp.office365.com';
+    private const SMTP_PORT = 587;
+    private const SMTP_USER = 'testing@quintanormal.cl';
+    private const SMTP_PASS = 'Quinta2026';
+    private const SMTP_FROM_NAME = 'Mesa de Ayuda Municipal';
+
     // ENVIAR CORREOS (SMTP)
     public function enviarCorreo($destinatario, $asunto, $cuerpo)
     {
-        $config = $this->getConfig();
-        if (!$config)
-            return false;
-
         $mail = new PHPMailer(true);
         try {
+            // Configuración del servidor SMTP
             $mail->isSMTP();
-
-            // Lógica para detectar el host SMTP
-            $smtpHost = !empty($config['smtp_host']) ? $config['smtp_host'] : null;
-
-            // Si no hay SMTP explícito, intentar deducirlo del IMAP
-            if (!$smtpHost) {
-                // Si el host IMAP empieza con 'imap.', lo cambiamos a 'smtp.'
-                if (strpos($config['host'], 'imap.') === 0) {
-                    $smtpHost = str_replace('imap.', 'smtp.', $config['host']);
-                } else {
-                    // Si no, asumimos que es el mismo host (común en Exchange/cPanel)
-                    $smtpHost = $config['host'];
-                }
-            }
-
-            $mail->Host = $smtpHost;
+            $mail->Host = self::SMTP_HOST;
             $mail->SMTPAuth = true;
-            $mail->Username = $config['usuario'];
-            $mail->Password = $config['password'];
+            $mail->Username = self::SMTP_USER;
+            $mail->Password = self::SMTP_PASS;
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            // Usar puerto SMTP específico o 587 por defecto
-            $mail->Port = !empty($config['smtp_port']) ? $config['smtp_port'] : 587;
+            $mail->Port = self::SMTP_PORT;
+            
+            // Configuración de caracteres UTF-8
+            $mail->CharSet = 'UTF-8';
+            $mail->Encoding = 'base64';
 
-            $mail->setFrom($config['usuario'], 'Mesa de Ayuda Municipal');
+            // Remitente y destinatario
+            $mail->setFrom(self::SMTP_USER, self::SMTP_FROM_NAME);
             $mail->addAddress($destinatario);
 
+            // Contenido del correo
             $mail->isHTML(true);
             $mail->Subject = $asunto;
             $mail->Body = $cuerpo;
+            $mail->AltBody = strip_tags($cuerpo); // Versión texto plano
 
             $mail->send();
             return true;
         } catch (Exception $e) {
-            error_log("Error enviando correo: {$mail->ErrorInfo}");
+            error_log("Error enviando correo SMTP: {$mail->ErrorInfo}");
+            return false;
+        }
+    }
+
+    /**
+     * Enviar correo con copia (CC) y/o copia oculta (BCC)
+     */
+    public function enviarCorreoAvanzado($destinatario, $asunto, $cuerpo, $cc = [], $bcc = [], $adjuntos = [])
+    {
+        $mail = new PHPMailer(true);
+        try {
+            // Configuración del servidor SMTP
+            $mail->isSMTP();
+            $mail->Host = self::SMTP_HOST;
+            $mail->SMTPAuth = true;
+            $mail->Username = self::SMTP_USER;
+            $mail->Password = self::SMTP_PASS;
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = self::SMTP_PORT;
+            
+            // Configuración de caracteres UTF-8
+            $mail->CharSet = 'UTF-8';
+            $mail->Encoding = 'base64';
+
+            // Remitente
+            $mail->setFrom(self::SMTP_USER, self::SMTP_FROM_NAME);
+            
+            // Destinatario principal
+            $mail->addAddress($destinatario);
+            
+            // Copias (CC)
+            foreach ($cc as $ccEmail) {
+                $mail->addCC($ccEmail);
+            }
+            
+            // Copias ocultas (BCC)
+            foreach ($bcc as $bccEmail) {
+                $mail->addBCC($bccEmail);
+            }
+            
+            // Adjuntos
+            foreach ($adjuntos as $adjunto) {
+                if (file_exists($adjunto)) {
+                    $mail->addAttachment($adjunto);
+                }
+            }
+
+            // Contenido del correo
+            $mail->isHTML(true);
+            $mail->Subject = $asunto;
+            $mail->Body = $cuerpo;
+            $mail->AltBody = strip_tags($cuerpo);
+
+            $mail->send();
+            return true;
+        } catch (Exception $e) {
+            error_log("Error enviando correo avanzado SMTP: {$mail->ErrorInfo}");
             return false;
         }
     }
@@ -186,4 +238,161 @@ class MailHandler
         ";
         $this->enviarCorreo($email, "Ticket Creado [$numero]", $body);
     }
-}
+    
+    /**
+     * Enviar correo usando Microsoft Graph API con el token del usuario
+     * Esto permite enviar desde la cuenta del usuario con su firma de Outlook
+     * 
+     * @param int $usuario_id ID del usuario que enviará el correo
+     * @param string $destinatario Email del destinatario
+     * @param string $asunto Asunto del correo
+     * @param string $cuerpo Cuerpo del correo en HTML
+     * @param array $cc Copias (opcional)
+     * @return bool True si se envió correctamente
+     */
+    public function enviarCorreoDesdeUsuario($usuario_id, $destinatario, $asunto, $cuerpo, $cc = [])
+    {
+        try {
+            // 1. Obtener el token del usuario desde la base de datos
+            $tokenData = $this->pdo->fetch(
+                "SELECT access_token, refresh_token, expires_at FROM oauth_tokens WHERE usuario_id = ?",
+                [$usuario_id]
+            );
+            
+            if (!$tokenData) {
+                error_log("No hay tokens OAuth2 para el usuario ID: $usuario_id");
+                return false;
+            }
+            
+            // 2. Verificar si el token ha expirado y refrescarlo si es necesario
+            $expiresAt = strtotime($tokenData['expires_at']);
+            $ahora = time();
+            
+            if ($ahora >= $expiresAt) {
+                // Token expirado, intentar refrescarlo
+                $accessToken = $this->refrescarTokenOAuth($usuario_id, $tokenData['refresh_token']);
+                if (!$accessToken) {
+                    error_log("No se pudo refrescar el token para el usuario ID: $usuario_id");
+                    return false;
+                }
+            } else {
+                $accessToken = $tokenData['access_token'];
+            }
+            
+            // 3. Construir el mensaje para Microsoft Graph API
+            $message = [
+                'message' => [
+                    'subject' => $asunto,
+                    'body' => [
+                        'contentType' => 'HTML',
+                        'content' => $cuerpo
+                    ],
+                    'toRecipients' => [
+                        [
+                            'emailAddress' => [
+                                'address' => $destinatario
+                            ]
+                        ]
+                    ]
+                ],
+                'saveToSentItems' => 'true' // Guardar en "Enviados"
+            ];
+            
+            // Agregar copias (CC) si existen
+            if (!empty($cc)) {
+                $ccRecipients = [];
+                foreach ($cc as $ccEmail) {
+                    $ccRecipients[] = [
+                        'emailAddress' => [
+                            'address' => $ccEmail
+                        ]
+                    ];
+                }
+                $message['message']['ccRecipients'] = $ccRecipients;
+            }
+            
+            // 4. Enviar el correo usando Microsoft Graph API
+            $url = 'https://graph.microsoft.com/v1.0/me/sendMail';
+            
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $accessToken,
+                'Content-Type: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($message));
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            // 5. Verificar respuesta
+            if ($httpCode === 202 || $httpCode === 200) {
+                // Éxito: Microsoft Graph devuelve 202 Accepted para sendMail
+                return true;
+            } else {
+                error_log("Error al enviar correo via Graph API. HTTP Code: $httpCode. Response: $response");
+                return false;
+            }
+            
+        } catch (Exception $e) {
+            error_log("Excepción al enviar correo via Graph API: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Refrescar el access token usando el refresh token
+     * 
+     * @param int $usuario_id ID del usuario
+     * @param string $refreshToken Refresh token actual
+     * @return string|false Nuevo access token o false si falla
+     */
+    private function refrescarTokenOAuth($usuario_id, $refreshToken)
+    {
+        try {
+            require_once __DIR__ . '/../vendor/autoload.php';
+            use TheNetworg\OAuth2\Client\Provider\Azure;
+            
+            // Cargar variables de entorno
+            $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+            $dotenv->load();
+            
+            $provider = new Azure([
+                'clientId'                => $_ENV['AZURE_CLIENT_ID'],
+                'clientSecret'            => $_ENV['AZURE_CLIENT_SECRET'],
+                'redirectUri'             => $_ENV['AZURE_REDIRECT_URI'],
+                'tenant'                  => 'common',
+                'urlAuthorize'            => "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+                'urlAccessToken'          => "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+                'urlResourceOwnerDetails' => 'https://graph.microsoft.com/v1.0/me',
+                'scopes'                  => ['openid', 'profile', 'email', 'User.Read', 'Mail.Send'],
+                'defaultEndPointVersion'  => '2.0',
+            ]);
+            
+            // Obtener nuevo access token usando el refresh token
+            $newAccessToken = $provider->getAccessToken('refresh_token', [
+                'refresh_token' => $refreshToken
+            ]);
+            
+            // Extraer datos del nuevo token
+            $tokenValue = $newAccessToken->getToken();
+            $newRefreshToken = $newAccessToken->getRefreshToken() ?: $refreshToken; // A veces no devuelve nuevo refresh token
+            $expiresAt = date('Y-m-d H:i:s', $newAccessToken->getExpires());
+            
+            // Actualizar en la base de datos
+            $this->pdo->query(
+                "UPDATE oauth_tokens 
+                 SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP 
+                 WHERE usuario_id = ?",
+                [$tokenValue, $newRefreshToken, $expiresAt, $usuario_id]
+            );
+            
+            return $tokenValue;
+            
+        } catch (Exception $e) {
+            error_log("Error al refrescar token OAuth: " . $e->getMessage());
+            return false;
+        }
+    }

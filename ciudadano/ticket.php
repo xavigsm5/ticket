@@ -103,9 +103,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comentario']) && !emp
                                     </div>
                                 </div>
                             </div>
+                            <?php if ($ticket['estado_id'] != 1): ?>
                             <span class="badge badge-estado" style="background: <?= $ticket['estado_color'] ?>; font-size: 0.9rem; padding: 0.5rem 1rem;">
                                 <?= htmlspecialchars($ticket['estado']) ?>
                             </span>
+                            <?php else: ?>
+                            <span class="badge badge-estado" style="background: #6c757d; font-size: 0.9rem; padding: 0.5rem 1rem;">
+                                Enviado
+                            </span>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -183,9 +189,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comentario']) && !emp
                 <div class="sidebar-seccion">
                     <div class="sidebar-seccion-titulo">Estado Actual</div>
                     <div style="text-align: center; padding: var(--espaciado-md);">
+                        <?php if ($ticket['estado_id'] != 1): ?>
                         <span class="badge badge-estado" style="background: <?= $ticket['estado_color'] ?>; font-size: 1rem; padding: 0.75rem 1.5rem;">
                             <?= htmlspecialchars($ticket['estado']) ?>
                         </span>
+                        <?php else: ?>
+                        <span class="badge badge-estado" style="background: #6c757d; font-size: 1rem; padding: 0.75rem 1.5rem;">
+                            Enviado
+                        </span>
+                        <?php endif; ?>
                     </div>
                 </div>
                 

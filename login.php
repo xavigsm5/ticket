@@ -19,6 +19,89 @@ if (estaAutenticado()) {
 $error = '';
 $email = '';
 
+/**
+ * Autenticar usuario mediante IMAP contra Microsoft 365
+ * @param string $email Correo del usuario
+ * @param string $password Contraseña del usuario
+ * @return array ['success' => bool, 'error' => string|null]
+ */
+function autenticarViaIMAP($email, $password) {
+    $imapHost = 'outlook.office365.com';
+    $imapPort = 993;
+    
+    // Construir string de conexión IMAP con SSL
+    $mailbox = "{" . $imapHost . ":" . $imapPort . "/imap/ssl/novalidate-cert}INBOX";
+    
+    // Intentar conexión IMAP
+    $connection = @imap_open($mailbox, $email, $password, 0, 1);
+    
+    if ($connection) {
+        imap_close($connection);
+        // Limpiar alertas
+        imap_errors();
+        imap_alerts();
+        return ['success' => true, 'error' => null];
+    }
+    
+    // Capturar errores de IMAP
+    $errors = imap_errors();
+    $alerts = imap_alerts();
+    
+    $errorMsg = '';
+    if ($errors) {
+        $errorMsg = implode(' | ', $errors);
+    }
+    if ($alerts) {
+        $errorMsg .= ' ' . implode(' | ', $alerts);
+    }
+    
+    // Log del error para debugging
+    error_log("IMAP Auth Error for $email: $errorMsg");
+    
+    return ['success' => false, 'error' => $errorMsg];
+}
+
+/**
+ * Obtener o crear usuario en la base de datos
+ * @param string $email Correo del usuario autenticado
+ * @return array|false Datos del usuario o false si falla
+ */
+function obtenerOCrearUsuarioIMAP($email) {
+    $db = Database::getInstance();
+    
+    // Buscar usuario existente
+    $usuario = $db->fetch("SELECT * FROM usuarios WHERE email = ? AND activo = TRUE", [$email]);
+    
+    if ($usuario) {
+        return $usuario;
+    }
+    
+    // Extraer nombre del email (parte antes del @)
+    $nombreBase = explode('@', $email)[0];
+    // Separar por puntos para obtener nombres y apellidos
+    $partes = explode('.', $nombreBase);
+    $nombres = ucfirst($partes[0] ?? 'Usuario');
+    $apellidos = isset($partes[1]) ? ucfirst($partes[1]) : 'Microsoft365';
+    
+    // Crear usuario con rol 'funcionario'
+    $passwordHash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+    $rutTemporal = 'M365-' . time() . '-' . rand(1000, 9999);
+    
+    try {
+        $db->query(
+            "INSERT INTO usuarios (rut, email, password, nombres, apellidos, rol, activo, email_verificado) 
+             VALUES (?, ?, ?, ?, ?, 'funcionario', TRUE, TRUE)",
+            [$rutTemporal, $email, $passwordHash, $nombres, $apellidos]
+        );
+        
+        // Obtener el usuario recién creado
+        return $db->fetch("SELECT * FROM usuarios WHERE email = ?", [$email]);
+    } catch (Exception $e) {
+        error_log("Error creando usuario IMAP: " . $e->getMessage());
+        return false;
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = limpiarInput($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -26,24 +109,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error = 'Por favor complete todos los campos.';
     } else {
-        $db = Database::getInstance();
-        $usuario = $db->fetch("SELECT * FROM usuarios WHERE email = ? AND activo = TRUE", [$email]);
+        // Validar dominios permitidos (para pruebas)
+        $dominiosPermitidos = ['@quintanormal.cl', '@municipalidad.cl'];
+        $dominioValido = false;
         
-        if ($usuario && password_verify($password, $usuario['password'])) {
-            $_SESSION['usuario_id'] = $usuario['id'];
-            $_SESSION['usuario_rol'] = $usuario['rol'];
-            $_SESSION['usuario_nombre'] = $usuario['nombres'] . ' ' . $usuario['apellidos'];
-            
-            $db->query("UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?", [$usuario['id']]);
-            
-            if (in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario'])) {
-                header('Location: /admin/dashboard.php');
-            } else {
-                header('Location: /ciudadano/mis-tickets.php');
+        foreach ($dominiosPermitidos as $dominio) {
+            if (substr(strtolower($email), -strlen($dominio)) === $dominio) {
+                $dominioValido = true;
+                break;
             }
-            exit;
+        }
+        
+        if (!$dominioValido) {
+            $error = 'Solo se permiten correos institucionales @quintanormal.cl o @municipalidad.cl';
         } else {
-            $error = 'Credenciales incorrectas.';
+            // Determinar método de autenticación según el dominio
+            $esQuintaNormal = str_ends_with(strtolower($email), '@quintanormal.cl');
+            
+            if ($esQuintaNormal) {
+                // @quintanormal.cl → Autenticación IMAP contra Microsoft 365
+                $authResult = autenticarViaIMAP($email, $password);
+                
+                if ($authResult['success']) {
+                    // Autenticación IMAP exitosa - obtener o crear usuario
+                    $usuario = obtenerOCrearUsuarioIMAP($email);
+                    
+                    if ($usuario) {
+                        // Establecer variables de sesión
+                        $_SESSION['usuario_id'] = $usuario['id'];
+                        $_SESSION['user_id'] = $usuario['id'];
+                        $_SESSION['usuario_rol'] = $usuario['rol'];
+                        $_SESSION['user_rol'] = $usuario['rol'];
+                        $_SESSION['usuario_nombre'] = $usuario['nombres'] . ' ' . $usuario['apellidos'];
+                        
+                        // Actualizar último acceso
+                        $db = Database::getInstance();
+                        $db->query("UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?", [$usuario['id']]);
+                        
+                        // Redirigir según rol
+                        if (in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario'])) {
+                            header('Location: /admin/dashboard.php');
+                        } else {
+                            header('Location: /ciudadano/mis-tickets.php');
+                        }
+                        exit;
+                    } else {
+                        $error = 'Error al procesar la cuenta de usuario.';
+                    }
+                } else {
+                    // Mostrar error específico de IMAP
+                    $imapError = $authResult['error'] ?? '';
+                    
+                    if (stripos($imapError, 'AUTHENTICATE') !== false || stripos($imapError, 'LOGIN') !== false) {
+                        $error = 'Error de autenticación Microsoft 365. Use el botón "Ingresar con Microsoft 365" o verifique sus credenciales.';
+                    } elseif (stripos($imapError, 'connection') !== false || stripos($imapError, 'timeout') !== false) {
+                        $error = 'No se pudo conectar al servidor de Microsoft 365.';
+                    } else {
+                        $error = 'Credenciales incorrectas. Use el botón "Ingresar con Microsoft 365" para cuentas @quintanormal.cl.';
+                    }
+                }
+            } else {
+                // @municipalidad.cl (y otros) → Autenticación por base de datos
+                $db = Database::getInstance();
+                $usuario = $db->fetch("SELECT * FROM usuarios WHERE email = ? AND activo = TRUE", [$email]);
+                
+                if ($usuario && password_verify($password, $usuario['password'])) {
+                    $_SESSION['usuario_id'] = $usuario['id'];
+                    $_SESSION['user_id'] = $usuario['id'];
+                    $_SESSION['usuario_rol'] = $usuario['rol'];
+                    $_SESSION['user_rol'] = $usuario['rol'];
+                    $_SESSION['usuario_nombre'] = $usuario['nombres'] . ' ' . $usuario['apellidos'];
+                    
+                    $db->query("UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?", [$usuario['id']]);
+                    
+                    if (in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario'])) {
+                        header('Location: /admin/dashboard.php');
+                    } else {
+                        header('Location: /ciudadano/mis-tickets.php');
+                    }
+                    exit;
+                } else {
+                    $error = 'Credenciales incorrectas.';
+                }
+            }
         }
     }
 }
@@ -87,9 +235,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <form method="POST" action="">
                     <div class="form-grupo">
-                        <label class="form-label" for="email">Correo electrónico</label>
+                        <label class="form-label" for="email">Correo institucional</label>
                         <input type="email" id="email" name="email" class="form-control" 
-                               placeholder="usuario@municipalidad.cl" value="<?= htmlspecialchars($email) ?>" required>
+                               placeholder="usuario@quintanormal.cl" value="<?= htmlspecialchars($email) ?>" required>
                     </div>
                     
                     <div class="form-grupo">

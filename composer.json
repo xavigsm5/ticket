@@ -6,7 +6,8 @@
         "php": ">=8.0",
         "phpmailer/phpmailer": "^6.8",
         "php-imap/php-imap": "^5.0",
-        "vlucas/phpdotenv": "^5.5"
+        "vlucas/phpdotenv": "^5.5",
+        "thenetworg/oauth2-azure": "^2.1"
     },
     "autoload": {
         "psr-4": {

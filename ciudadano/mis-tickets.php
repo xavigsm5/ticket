@@ -149,9 +149,15 @@ $stats = [
                                 <?= htmlspecialchars($t['categoria'] ?? '-') ?>
                             </td>
                             <td>
+                                <?php if ($t['estado_id'] != 1): ?>
                                 <span class="badge badge-estado" style="background: <?= $t['estado_color'] ?>">
                                     <?= htmlspecialchars($t['estado']) ?>
                                 </span>
+                                <?php else: ?>
+                                <span class="badge badge-estado" style="background: #6c757d">
+                                    Enviado
+                                </span>
+                                <?php endif; ?>
                             </td>
                             <td class="ticket-fecha">
                                 <?= formatearFecha($t['created_at'], 'd/m/Y') ?><br>
