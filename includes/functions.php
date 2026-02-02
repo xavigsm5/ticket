@@ -162,7 +162,7 @@ function crearTicket($datos)
 {
     $db = Database::getInstance();
     $es_anonimo = !empty($datos['es_anonimo']) ? 'true' : 'false';
-    
+
     // Buscar técnico asignado automáticamente según la categoría
     $asignado_id = null;
     if (!empty($datos['categoria_id'])) {
@@ -254,6 +254,18 @@ function obtenerEstadisticas()
         'en_proceso' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE estado_id IN (2,3)")['total'],
         'resueltos' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE estado_id IN (5,6)")['total'],
         'hoy' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE DATE(created_at) = CURRENT_DATE")['total']
+    ];
+}
+
+function obtenerEstadisticasUsuario($usuario_id)
+{
+    $db = Database::getInstance();
+    return [
+        'total' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE asignado_id = ?", [$usuario_id])['total'],
+        'pendientes' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE estado_id = 1 AND asignado_id = ?", [$usuario_id])['total'],
+        'en_proceso' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE estado_id IN (2,3) AND asignado_id = ?", [$usuario_id])['total'],
+        'resueltos' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE estado_id IN (5,6) AND asignado_id = ?", [$usuario_id])['total'],
+        'hoy' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE DATE(created_at) = CURRENT_DATE AND asignado_id = ?", [$usuario_id])['total']
     ];
 }
 

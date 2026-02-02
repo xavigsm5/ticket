@@ -722,8 +722,8 @@ a:hover {
     /* Un poco más grande */
     font-weight: 600;
     /* Más negrita */
-    color: #1a202c;
-    /* Negro suave, mucho más legible */
+    color: white;
+    /* Blanco para fondos oscuros */
 }
 
 .form-label.requerido::after {

@@ -8,7 +8,14 @@ require_once __DIR__ . '/../includes/freshdesk_functions.php';
 requiereRol(['admin', 'supervisor', 'funcionario']);
 
 $usuario = obtenerUsuarioActual();
-$stats = obtenerEstadisticas();
+
+// Si es funcionario, mostrar solo estadísticas de sus tickets asignados
+if ($usuario['rol'] === 'funcionario') {
+    $stats = obtenerEstadisticasUsuario($usuario['id']);
+} else {
+    $stats = obtenerEstadisticas();
+}
+
 $etiquetas = obtenerEtiquetas();
 $notificaciones_count = contarNotificacionesNoLeidas($usuario['id']);
 
@@ -378,11 +385,14 @@ $funcionarios = $ticket_actual ? obtenerFuncionarios($ticket_actual['departament
                                         <a href="<?= $n['ticket_id'] ? '/admin/dashboard.php?id=' . $n['ticket_id'] : '#' ?>"
                                             style="display: block; padding: 12px; border-bottom: 1px solid var(--gris-100); text-decoration: none; color: inherit; background: <?= $n['leida'] ? 'white' : '#f0f9ff' ?>;">
                                             <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">
-                                                <?= htmlspecialchars($n['titulo']) ?></div>
+                                                <?= htmlspecialchars($n['titulo']) ?>
+                                            </div>
                                             <div style="font-size: 12px; color: var(--gris-600);">
-                                                <?= htmlspecialchars($n['mensaje']) ?></div>
+                                                <?= htmlspecialchars($n['mensaje']) ?>
+                                            </div>
                                             <div style="font-size: 10px; color: var(--gris-400); margin-top: 4px;">
-                                                <?= tiempoTranscurrido($n['created_at']) ?></div>
+                                                <?= tiempoTranscurrido($n['created_at']) ?>
+                                            </div>
                                         </a>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -674,17 +684,28 @@ $funcionarios = $ticket_actual ? obtenerFuncionarios($ticket_actual['departament
                                         </select>
                                     </div>
 
-                                    <div class="propiedad-grupo">
-                                        <div class="propiedad-titulo">Asignado a</div>
-                                        <select name="asignado_id" class="propiedad-select">
-                                            <option value="">-- Sin asignar --</option>
-                                            <?php foreach ($funcionarios as $f): ?>
-                                                <option value="<?= $f['id'] ?>" <?= $ticket_actual['asignado_id'] == $f['id'] ? 'selected' : '' ?>>
-                                                    <?= htmlspecialchars($f['nombres'] . ' ' . $f['apellidos']) ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
+                                    <?php if (tieneRol(['admin', 'supervisor'])): ?>
+                                        <div class="propiedad-grupo">
+                                            <div class="propiedad-titulo">Asignado a</div>
+                                            <select name="asignado_id" class="propiedad-select">
+                                                <option value="">-- Sin asignar --</option>
+                                                <?php foreach ($funcionarios as $f): ?>
+                                                    <option value="<?= $f['id'] ?>" <?= $ticket_actual['asignado_id'] == $f['id'] ? 'selected' : '' ?>>
+                                                        <?= htmlspecialchars($f['nombres'] . ' ' . $f['apellidos']) ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="propiedad-grupo">
+                                            <div class="propiedad-titulo">Asignado a</div>
+                                            <div class="propiedad-valor">
+                                                <?= htmlspecialchars($ticket_actual['asignado_nombre'] ?? 'Sin asignar') ?>
+                                            </div>
+                                            <input type="hidden" name="asignado_id"
+                                                value="<?= $ticket_actual['asignado_id'] ?>">
+                                        </div>
+                                    <?php endif; ?>
 
                                     <div class="propiedad-grupo">
                                         <button type="submit" class="btn btn-primario btn-bloque btn-sm">

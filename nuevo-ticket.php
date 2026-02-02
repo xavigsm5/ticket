@@ -156,6 +156,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: inline-block;
             margin-bottom: 24px;
         }
+        /* Override para labels en nuevo-ticket */
+        .form-ti .form-label {
+            color: #1a202c !important;
+        }
     </style>
 </head>
 <body style="background: #f7fafc;">

@@ -110,6 +110,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </button>
                 </form>
                 
+                <!-- Separador -->
+                <div style="margin: 24px 0; display: flex; align-items: center; gap: 16px;">
+                    <div style="flex: 1; height: 1px; background: var(--gris-200);"></div>
+                    <span style="font-size: 13px; color: var(--gris-500);">o continúe con</span>
+                    <div style="flex: 1; height: 1px; background: var(--gris-200);"></div>
+                </div>
+                
+                <!-- Botón Microsoft 365 -->
+                <a href="/callback.php" class="btn btn-bloque btn-lg" style="background: #2F2F2F; color: #fff; display: flex; align-items: center; justify-content: center; gap: 12px; text-decoration: none; border: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 21 21">
+                        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                    </svg>
+                    Ingresar con Microsoft 365
+                </a>
+                <p style="margin-top: 8px; font-size: 11px; color: var(--gris-500); text-align: center;">
+                    Para funcionarios @quintanormal.cl
+                </p>
+                
                 <div style="margin-top: 24px; text-align: center; padding-top: 24px; border-top: 1px solid var(--gris-200);">
                     <p style="font-size: 13px; color: var(--gris-600);">
                         ¿No tiene cuenta? <a href="/registro.php">Regístrese aquí</a>
