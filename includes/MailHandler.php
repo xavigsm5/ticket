@@ -128,33 +128,32 @@ class MailHandler
         return $this->pdo->fetch("SELECT * FROM usuarios WHERE email = ?", [$email]);
     }
 
-    // Configuración SMTP Microsoft 365 (cuenta institucional)
-    private const SMTP_HOST = 'smtp.office365.com';
-    private const SMTP_PORT = 587;
-    private const SMTP_USER = 'testing@quintanormal.cl';
-    private const SMTP_PASS = 'Quinta2026';
-    private const SMTP_FROM_NAME = 'Mesa de Ayuda Municipal';
-
     // ENVIAR CORREOS (SMTP)
     public function enviarCorreo($destinatario, $asunto, $cuerpo)
     {
         $mail = new PHPMailer(true);
         try {
+            // Cargar configuración SMTP desde variables de entorno
+            $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+            $dotenv->load();
+            
             // Configuración del servidor SMTP
             $mail->isSMTP();
-            $mail->Host = self::SMTP_HOST;
+            $mail->Host = $_ENV['SMTP_HOST'] ?? 'smtp.office365.com';
             $mail->SMTPAuth = true;
-            $mail->Username = self::SMTP_USER;
-            $mail->Password = self::SMTP_PASS;
+            $mail->Username = $_ENV['SMTP_USER'] ?? '';
+            $mail->Password = $_ENV['SMTP_PASS'] ?? '';
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port = self::SMTP_PORT;
+            $mail->Port = $_ENV['SMTP_PORT'] ?? 587;
             
             // Configuración de caracteres UTF-8
             $mail->CharSet = 'UTF-8';
             $mail->Encoding = 'base64';
 
             // Remitente y destinatario
-            $mail->setFrom(self::SMTP_USER, self::SMTP_FROM_NAME);
+            $smtpUser = $_ENV['SMTP_USER'] ?? 'testing@quintanormal.cl';
+            $smtpFromName = $_ENV['SMTP_FROM_NAME'] ?? 'Mesa de Ayuda Municipal';
+            $mail->setFrom($smtpUser, $smtpFromName);
             $mail->addAddress($destinatario);
 
             // Contenido del correo
@@ -178,21 +177,27 @@ class MailHandler
     {
         $mail = new PHPMailer(true);
         try {
+            // Cargar configuración SMTP desde variables de entorno
+            $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+            $dotenv->load();
+            
             // Configuración del servidor SMTP
             $mail->isSMTP();
-            $mail->Host = self::SMTP_HOST;
+            $mail->Host = $_ENV['SMTP_HOST'] ?? 'smtp.office365.com';
             $mail->SMTPAuth = true;
-            $mail->Username = self::SMTP_USER;
-            $mail->Password = self::SMTP_PASS;
+            $mail->Username = $_ENV['SMTP_USER'] ?? '';
+            $mail->Password = $_ENV['SMTP_PASS'] ?? '';
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port = self::SMTP_PORT;
+            $mail->Port = $_ENV['SMTP_PORT'] ?? 587;
             
             // Configuración de caracteres UTF-8
             $mail->CharSet = 'UTF-8';
             $mail->Encoding = 'base64';
 
             // Remitente
-            $mail->setFrom(self::SMTP_USER, self::SMTP_FROM_NAME);
+            $smtpUser = $_ENV['SMTP_USER'] ?? 'testing@quintanormal.cl';
+            $smtpFromName = $_ENV['SMTP_FROM_NAME'] ?? 'Mesa de Ayuda Municipal';
+            $mail->setFrom($smtpUser, $smtpFromName);
             
             // Destinatario principal
             $mail->addAddress($destinatario);
