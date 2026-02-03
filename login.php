@@ -8,10 +8,10 @@ iniciarSesionSegura();
 
 if (estaAutenticado()) {
     $usuario = obtenerUsuarioActual();
-    if (in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario'])) {
+    if (in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
         header('Location: /admin/dashboard.php');
     } else {
-        header('Location: /ciudadano/mis-tickets.php');
+        header('Location: /funcionario/mis-tickets.php');
     }
     exit;
 }
@@ -147,10 +147,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db->query("UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?", [$usuario['id']]);
                         
                         // Redirigir según rol
-                        if (in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario'])) {
+                        if (in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
                             header('Location: /admin/dashboard.php');
                         } else {
-                            header('Location: /ciudadano/mis-tickets.php');
+                            header('Location: /funcionario/mis-tickets.php');
                         }
                         exit;
                     } else {
@@ -182,10 +182,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $db->query("UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?", [$usuario['id']]);
                     
-                    if (in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario'])) {
+                    if (in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
                         header('Location: /admin/dashboard.php');
                     } else {
-                        header('Location: /ciudadano/mis-tickets.php');
+                        header('Location: /funcionario/mis-tickets.php');
                     }
                     exit;
                 } else {

@@ -8,7 +8,7 @@ require_once __DIR__ . '/includes/functions.php';
 
 if (estaAutenticado()) {
     $usuario = obtenerUsuarioActual();
-    if (in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario'])) {
+    if (in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
         header('Location: /admin/dashboard.php');
         exit;
     }
@@ -184,7 +184,7 @@ $categorias = obtenerTodasCategorias();
                     $u = obtenerUsuarioActual();
                     $notis = contarNotificacionesNoLeidas($u['id']);
                     ?>
-                    <a href="/ciudadano/mis-tickets.php"
+                    <a href="/funcionario/mis-tickets.php"
                         class="btn btn-secundario btn-sm <?php echo strpos($_SERVER['PHP_SELF'], 'mis-tickets.php') !== false ? 'activo' : ''; ?>"
                         style="position:relative;">
                         Mis Tickets

@@ -6,6 +6,7 @@ require_once __DIR__ . '/functions.php';
 use PhpImap\Mailbox;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+use TheNetworg\OAuth2\Client\Provider\Azure;
 
 class MailHandler
 {
@@ -284,7 +285,15 @@ class MailHandler
                 $accessToken = $tokenData['access_token'];
             }
             
-            // 3. Construir el mensaje para Microsoft Graph API
+            // 3. Obtener la firma del usuario
+            $firma = $this->generarFirmaUsuario($usuario_id);
+            
+            // Agregar firma al cuerpo del mensaje
+            if ($firma) {
+                $cuerpo = $cuerpo . '<br><br>' . $firma;
+            }
+            
+            // 4. Construir el mensaje para Microsoft Graph API
             $message = [
                 'message' => [
                     'subject' => $asunto,
@@ -316,7 +325,7 @@ class MailHandler
                 $message['message']['ccRecipients'] = $ccRecipients;
             }
             
-            // 4. Enviar el correo usando Microsoft Graph API
+            // 5. Enviar el correo usando Microsoft Graph API
             $url = 'https://graph.microsoft.com/v1.0/me/sendMail';
             
             $ch = curl_init($url);
@@ -332,7 +341,7 @@ class MailHandler
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
             
-            // 5. Verificar respuesta
+            // 6. Verificar respuesta
             if ($httpCode === 202 || $httpCode === 200) {
                 // Éxito: Microsoft Graph devuelve 202 Accepted para sendMail
                 return true;
@@ -348,6 +357,102 @@ class MailHandler
     }
     
     /**
+     * Generar firma HTML para el usuario basada en sus datos
+     * 
+     * @param int $usuario_id ID del usuario
+     * @return string Firma HTML
+     */
+    private function generarFirmaUsuario($usuario_id)
+    {
+        try {
+            $usuario = $this->pdo->fetch(
+                "SELECT u.nombres, u.apellidos, u.email, u.telefono, u.firma_imagen, d.nombre as departamento 
+                 FROM usuarios u 
+                 LEFT JOIN departamentos d ON u.departamento_id = d.id 
+                 WHERE u.id = ?",
+                [$usuario_id]
+            );
+            
+            if (!$usuario) {
+                return '';
+            }
+            
+            // Si tiene firma en imagen, usarla
+            if ($usuario['firma_imagen'] && file_exists(__DIR__ . '/../' . $usuario['firma_imagen'])) {
+                $firmaUrl = 'http://localhost:8080/' . $usuario['firma_imagen'];
+                return "<br><br><img src='{$firmaUrl}' alt='Firma' style='max-width: 400px;'>";
+            }
+            
+            // Si no, generar firma HTML con datos del usuario
+            $nombre = $usuario['nombres'] . ' ' . $usuario['apellidos'];
+            $email = $usuario['email'];
+            $telefono = $usuario['telefono'] ? $usuario['telefono'] : '';
+            $departamento = $usuario['departamento'] ? $usuario['departamento'] : 'Municipalidad de Quinta Normal';
+            
+            $firma = "
+            <div style='font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px; padding-top: 15px; border-top: 2px solid #0d6efd;'>
+                <p style='margin: 5px 0;'><strong style='color: #0d6efd;'>{$nombre}</strong></p>
+                <p style='margin: 5px 0; color: #666;'>{$departamento}</p>
+                " . ($telefono ? "<p style='margin: 5px 0;'><strong>Tel:</strong> {$telefono}</p>" : "") . "
+                <p style='margin: 5px 0;'><strong>Email:</strong> <a href='mailto:{$email}' style='color: #0d6efd;'>{$email}</a></p>
+                <p style='margin: 5px 0; color: #888; font-size: 11px;'>Municipalidad de Quinta Normal</p>
+            </div>
+            ";
+            
+            return $firma;
+            
+        } catch (Exception $e) {
+            error_log("Error generando firma de usuario: " . $e->getMessage());
+            return '';
+        }
+    }
+
+    /**
+     * Obtener la firma de correo configurada en Outlook del usuario
+     * 
+     * @param string $accessToken Token de acceso OAuth2
+     * @return string|false Firma HTML o false si no hay/falla
+     */
+    private function obtenerFirmaOutlook($accessToken)
+    {
+        try {
+            // Obtener la configuración de mailbox settings del usuario
+            $url = 'https://graph.microsoft.com/v1.0/me/mailboxSettings';
+            
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $accessToken,
+                'Content-Type: application/json'
+            ]);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($httpCode === 200) {
+                $data = json_decode($response, true);
+                
+                // La firma está en automaticRepliesSetting pero no siempre está disponible vía API
+                // Como alternativa, intentamos obtener un borrador reciente que podría contener la firma
+                // O simplemente retornamos una firma genérica si el usuario la tiene configurada
+                
+                // Por ahora, Microsoft Graph API no expone directamente las firmas de Outlook
+                // La mejor alternativa es que el usuario configure su firma en el sistema
+                // o extraerla del primer correo enviado
+                
+                return false; // No disponible vía API estándar
+            }
+            
+            return false;
+            
+        } catch (Exception $e) {
+            error_log("Error obteniendo firma de Outlook: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Refrescar el access token usando el refresh token
      * 
      * @param int $usuario_id ID del usuario
@@ -357,9 +462,6 @@ class MailHandler
     private function refrescarTokenOAuth($usuario_id, $refreshToken)
     {
         try {
-            require_once __DIR__ . '/../vendor/autoload.php';
-            use TheNetworg\OAuth2\Client\Provider\Azure;
-            
             // Cargar variables de entorno
             $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
             $dotenv->load();
@@ -400,4 +502,4 @@ class MailHandler
             error_log("Error al refrescar token OAuth: " . $e->getMessage());
             return false;
         }
-    }
+    }}

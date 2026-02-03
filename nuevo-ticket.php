@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $usuario_id = $db->insert("
                 INSERT INTO usuarios (email, nombres, apellidos, rol, password, telefono)
-                VALUES (?, ?, ?, 'ciudadano', '', ?)
+                VALUES (?, ?, ?, 'funcionario', '', ?)
                 RETURNING id
             ", [$email, $nombres, $apellidos, $telefono]);
         } else {
@@ -65,6 +65,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ticket_id = crearTicketConSLA($usuario_id, $categoria_id, $asunto, $descripcion_completa, $prioridad_id);
         
         if ($ticket_id) {
+            // Procesar archivos adjuntos
+            if (!empty($_FILES['adjuntos']['name'][0])) {
+                $upload_dir = __DIR__ . '/uploads/attachments/';
+                if (!file_exists($upload_dir)) {
+                    mkdir($upload_dir, 0755, true);
+                }
+                
+                foreach ($_FILES['adjuntos']['tmp_name'] as $key => $tmp_name) {
+                    if ($_FILES['adjuntos']['error'][$key] === UPLOAD_ERR_OK) {
+                        $nombre_archivo = basename($_FILES['adjuntos']['name'][$key]);
+                        $extension = pathinfo($nombre_archivo, PATHINFO_EXTENSION);
+                        $nombre_unico = time() . '_' . uniqid() . '.' . $extension;
+                        $ruta_destino = $upload_dir . $nombre_unico;
+                        
+                        if (move_uploaded_file($tmp_name, $ruta_destino)) {
+                            // Guardar en base de datos
+                            $db->query(
+                                "INSERT INTO ticket_adjuntos (ticket_id, nombre_archivo, ruta_archivo, tamano, tipo_mime) 
+                                 VALUES (?, ?, ?, ?, ?)",
+                                [
+                                    $ticket_id,
+                                    $nombre_archivo,
+                                    'uploads/attachments/' . $nombre_unico,
+                                    $_FILES['adjuntos']['size'][$key],
+                                    $_FILES['adjuntos']['type'][$key]
+                                ]
+                            );
+                        }
+                    }
+                }
+            }
+            
             $ticket = obtenerTicket($ticket_id);
             $ticket_numero = $ticket['numero'];
             $exito = true;
@@ -135,6 +167,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .exito-mensaje {
             text-align: center;
             padding: 60px 20px;
+        }
+        
+        /* Estilo personalizado para input file */
+        .file-upload-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .file-upload-wrapper input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            border: none;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .file-upload-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .file-upload-label i {
+            font-size: 18px;
+        }
+        
+        .files-selected {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #f7fafc;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #4a5568;
+            display: none;
+        }
+        
+        .files-selected.show {
+            display: block;
+        }
+        
+        .files-selected i {
+            color: #48bb78;
+            margin-right: 6px;
         }
         .exito-icono {
             width: 80px;
@@ -227,7 +315,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <?php endif; ?>
             
-            <form method="POST" action="">
+            <form method="POST" action="" enctype="multipart/form-data">
                 <!-- Datos del Solicitante -->
                 <div class="seccion-form">
                     <div class="seccion-titulo">
@@ -340,6 +428,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 - ¿Desde cuándo ocurre el problema?
 - ¿Otros equipos tienen el mismo problema?"
                                   required><?= htmlspecialchars($_POST['descripcion'] ?? '') ?></textarea>
+                    </div>
+                    
+                    <div class="form-grupo">
+                        <label class="form-label">Adjuntar Archivos</label>
+                        <input type="file" name="adjuntos[]" class="form-control" multiple 
+                               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+                        <small style="color: #6c757d; font-size: 12px;">
+                            Puedes adjuntar capturas de pantalla, documentos, etc. (máx. 10MB por archivo)
+                        </small>
                     </div>
                     
                     <div class="form-grupo">

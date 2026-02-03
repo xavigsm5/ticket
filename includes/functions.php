@@ -257,6 +257,23 @@ function enviarNotificacionNuevoTicketATI($ticket, $datos)
         $nombrePrioridad = $prioridad['nombre'] ?? 'Normal';
         $colorPrioridad = $prioridad['color'] ?? '#6c757d';
         
+        // Obtener adjuntos del ticket
+        $adjuntos = $db->fetchAll(
+            "SELECT nombre_archivo, ruta_archivo FROM ticket_adjuntos WHERE ticket_id = ?",
+            [$ticket['id']]
+        );
+        
+        $adjuntosHtml = '';
+        if (!empty($adjuntos)) {
+            $adjuntosHtml = "<hr style='border: none; border-top: 1px solid #dee2e6; margin: 15px 0;'>
+                <p><span class='label'>Archivos Adjuntos:</span></p>
+                <ul style='margin: 5px 0; padding-left: 20px;'>";
+            foreach ($adjuntos as $adj) {
+                $adjuntosHtml .= "<li><a href='http://localhost:8080/{$adj['ruta_archivo']}' style='color: #0d6efd;'>{$adj['nombre_archivo']}</a></li>";
+            }
+            $adjuntosHtml .= "</ul>";
+        }
+        
         $asunto = "Nuevo Ticket #{$ticket['numero']} - {$datos['asunto']}";
         
         $cuerpo = "
@@ -290,6 +307,7 @@ function enviarNotificacionNuevoTicketATI($ticket, $datos)
                         <hr style='border: none; border-top: 1px solid #dee2e6; margin: 15px 0;'>
                         <p><span class='label'>Descripción:</span></p>
                         <p style='background: #e9ecef; padding: 10px; border-radius: 4px;'>" . nl2br(htmlspecialchars($datos['descripcion'])) . "</p>
+                        {$adjuntosHtml}
                     </div>
                     <a href='http://localhost:8080/admin/ticket-detalle.php?id={$ticket['id']}' class='btn'>Ver Ticket Completo</a>
                 </div>
@@ -411,12 +429,12 @@ function obtenerCategorias($dep_id = null)
 function obtenerTodasCategorias()
 {
     $db = Database::getInstance();
-    return $db->fetchAll("SELECT c.*, d.nombre as departamento FROM categorias c JOIN departamentos d ON c.departamento_id = d.id WHERE c.activo = TRUE ORDER BY c.nombre");
+    return $db->fetchAll("SELECT c.*, d.nombre as departamento FROM categorias c LEFT JOIN departamentos d ON c.departamento_id = d.id WHERE c.activo = TRUE ORDER BY c.nombre");
 }
 function obtenerFuncionarios($dep_id = null)
 {
     $db = Database::getInstance();
-    return $dep_id ? $db->fetchAll("SELECT id, nombres, apellidos, email, rol FROM usuarios WHERE rol IN ('funcionario', 'supervisor', 'admin') AND activo = TRUE AND departamento_id = ?", [$dep_id]) : $db->fetchAll("SELECT id, nombres, apellidos, email, rol FROM usuarios WHERE rol IN ('funcionario', 'supervisor', 'admin') AND activo = TRUE");
+    return $dep_id ? $db->fetchAll("SELECT id, nombres, apellidos, email, rol FROM usuarios WHERE rol IN ('soporte_ti', 'admin') AND activo = TRUE AND departamento_id = ?", [$dep_id]) : $db->fetchAll("SELECT id, nombres, apellidos, email, rol FROM usuarios WHERE rol IN ('soporte_ti', 'admin') AND activo = TRUE");
 }
 
 function obtenerEstadisticas()

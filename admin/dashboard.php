@@ -5,12 +5,12 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/freshdesk_functions.php';
 
-requiereRol(['admin', 'supervisor', 'funcionario']);
+requiereRol(['admin', 'soporte_ti']);
 
 $usuario = obtenerUsuarioActual();
 
-// Si es funcionario, mostrar solo estadísticas de sus tickets asignados
-if ($usuario['rol'] === 'funcionario') {
+// Si es soporte_ti, mostrar solo estadísticas de sus tickets asignados
+if ($usuario['rol'] === 'soporte_ti') {
     $stats = obtenerEstadisticasUsuario($usuario['id']);
 } else {
     $stats = obtenerEstadisticas();
@@ -48,6 +48,7 @@ $ticket_etiquetas = [];
 $sla_info = null;
 $usuarios_viendo = [];
 $respuestas_predefinidas = [];
+$adjuntos = [];
 
 if (isset($_GET['id'])) {
     $ticket_actual = obtenerTicket((int) $_GET['id']);
@@ -58,6 +59,13 @@ if (isset($_GET['id'])) {
         $respuestas_predefinidas = obtenerRespuestasPredefinidas($ticket_actual['departamento_id'], $usuario['id']);
         registrarActividadTicket($ticket_actual['id'], $usuario['id'], 'viendo');
         $usuarios_viendo = obtenerUsuariosViendoTicket($ticket_actual['id'], $usuario['id']);
+        
+        // Obtener adjuntos
+        $db = Database::getInstance();
+        $adjuntos = $db->fetchAll(
+            "SELECT * FROM ticket_adjuntos WHERE ticket_id = ? ORDER BY created_at ASC",
+            [$ticket_actual['id']]
+        );
     }
 }
 
@@ -79,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
 
-        if (!$es_interno && in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario'])) {
+        if (!$es_interno && in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
             $db = Database::getInstance();
             $db->query("UPDATE tickets SET fecha_primera_respuesta = COALESCE(fecha_primera_respuesta, CURRENT_TIMESTAMP), sla_respuesta_cumplido = TRUE WHERE id = ?", [$ticket_actual['id']]);
         }
@@ -125,7 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $prioridades = obtenerPrioridades();
-$funcionarios = $ticket_actual ? obtenerFuncionarios($ticket_actual['departamento_id']) : [];
+// Obtener solo funcionarios del Área de Informática (departamento 2)
+$funcionarios = $ticket_actual ? obtenerFuncionarios(2) : [];
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -589,6 +598,46 @@ $funcionarios = $ticket_actual ? obtenerFuncionarios($ticket_actual['departament
                                     </div>
                                     <div class="mensaje-body">
                                         <?= nl2br(htmlspecialchars($ticket_actual['descripcion'])) ?>
+
+                                        <?php if (!empty($adjuntos)): ?>
+                                            <div style="margin-top: 16px; padding: 12px; background: var(--gris-50); border-radius: 4px;">
+                                                <strong><i class="bi bi-paperclip"></i> Archivos Adjuntos:</strong>
+                                                <div style="margin-top: 12px;">
+                                                    <?php foreach ($adjuntos as $adj): 
+                                                        $extension = strtolower(pathinfo($adj['nombre_archivo'], PATHINFO_EXTENSION));
+                                                        $esImagen = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+                                                    ?>
+                                                        <div style="margin-bottom: 12px;">
+                                                            <?php if ($esImagen): ?>
+                                                                <div style="margin-bottom: 8px;">
+                                                                    <strong><?= htmlspecialchars($adj['nombre_archivo']) ?></strong>
+                                                                    <?php if ($adj['tamano']): ?>
+                                                                        <small style="color: #6c757d;">(<?= round($adj['tamano'] / 1024, 1) ?> KB)</small>
+                                                                    <?php endif; ?>
+                                                                </div>
+                                                                <a href="/<?= $adj['ruta_archivo'] ?>" target="_blank">
+                                                                    <img src="/<?= $adj['ruta_archivo'] ?>" 
+                                                                         alt="<?= htmlspecialchars($adj['nombre_archivo']) ?>" 
+                                                                         style="max-width: 100%; max-height: 400px; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; display: block;">
+                                                                </a>
+                                                                <small style="color: #6c757d; font-size: 11px;">Haz clic en la imagen para verla en tamaño completo</small>
+                                                            <?php else: ?>
+                                                                <a href="/<?= $adj['ruta_archivo'] ?>" target="_blank" 
+                                                                   style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border: 1px solid #dee2e6; border-radius: 4px; color: #0d6efd; text-decoration: none;">
+                                                                    <i class="bi bi-file-earmark" style="font-size: 20px;"></i>
+                                                                    <div>
+                                                                        <div><?= htmlspecialchars($adj['nombre_archivo']) ?></div>
+                                                                        <?php if ($adj['tamano']): ?>
+                                                                            <small style="color: #6c757d;"><?= round($adj['tamano'] / 1024, 1) ?> KB</small>
+                                                                        <?php endif; ?>
+                                                                    </div>
+                                                                </a>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </div>
+                                        <?php endif; ?>
 
                                         <?php if ($ticket_actual['ubicacion_direccion']): ?>
                                             <div

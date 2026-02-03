@@ -1,6 +1,6 @@
 <?php
 /**
- * Ver Ticket - Portal Ciudadano
+ * Ver Ticket - Portal Funcionario
  */
 require_once __DIR__ . '/../includes/functions.php';
 
@@ -18,7 +18,7 @@ $ticket = obtenerTicket($id);
 
 // Verificar que el ticket pertenece al usuario
 if (!$ticket || $ticket['ciudadano_id'] != $usuario['id']) {
-    header('Location: /ciudadano/mis-tickets.php?error=acceso');
+    header('Location: /funcionario/mis-tickets.php?error=acceso');
     exit;
 }
 
@@ -54,12 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comentario']) && !emp
                     </div>
                     <div class="header-titulo">
                         <h1>Municipalidad</h1>
-                        <span>Portal Ciudadano</span>
+                        <span>Portal Funcionario</span>
                     </div>
                 </div>
                 <nav class="header-nav">
                     <a href="/">Inicio</a>
-                    <a href="/ciudadano/mis-tickets.php">Mis Tickets</a>
+                    <a href="/funcionario/mis-tickets.php">Mis Tickets</a>
                     <a href="/logout.php" class="btn btn-secundario" style="background:rgba(255,255,255,0.15);border:none;color:white;">
                         <i class="bi bi-box-arrow-right"></i> Salir
                     </a>
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comentario']) && !emp
 
     <main class="contenedor" style="padding: var(--espaciado-2xl) 0;">
         <div style="margin-bottom: var(--espaciado-lg);">
-            <a href="/ciudadano/mis-tickets.php" style="display: inline-flex; align-items: center; gap: var(--espaciado-sm); color: var(--gris-600);">
+            <a href="/funcionario/mis-tickets.php" style="display: inline-flex; align-items: center; gap: var(--espaciado-sm); color: var(--gris-600);">
                 <i class="bi bi-arrow-left"></i> Volver a mis solicitudes
             </a>
         </div>

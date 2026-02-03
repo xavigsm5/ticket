@@ -255,10 +255,10 @@ function guardarTokensOAuth($db, $usuario_id, $accessToken, $refreshToken, $expi
  * Redirige al usuario según su rol
  */
 function redirigirSegunRol($rol) {
-    if (in_array($rol, ['admin', 'supervisor', 'funcionario'])) {
+    if (in_array($rol, ['admin', 'soporte_ti'])) {
         header('Location: /admin/dashboard.php');
     } else {
-        header('Location: /ciudadano/mis-tickets.php');
+        header('Location: /funcionario/mis-tickets.php');
     }
     exit;
 }

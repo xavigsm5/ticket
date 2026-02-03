@@ -74,6 +74,11 @@ $automatizaciones = $db->fetchAll("SELECT * FROM automatizaciones ORDER BY activ
     <title>Automatizaciones - Mesa de Ayuda</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/assets/css/style.css">
+    <style>
+        .form-label {
+            color: #1f2937 !important;
+        }
+    </style>
 </head>
 <body>
     <div class="layout-app">

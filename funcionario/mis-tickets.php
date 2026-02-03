@@ -1,6 +1,6 @@
 <?php
 /**
- * Mis Tickets - Portal Ciudadano
+ * Mis Tickets - Portal Funcionario
  */
 require_once __DIR__ . '/../includes/functions.php';
 
@@ -8,14 +8,34 @@ requiereAutenticacion();
 
 $usuario = obtenerUsuarioActual();
 
-// Obtener tickets del ciudadano
-$tickets = obtenerTickets(['ciudadano_id' => $usuario['id']], 100);
+// Obtener tickets del funcionario
+$db = Database::getInstance();
+$tickets = $db->fetchAll("
+    SELECT t.*, 
+           c.nombre as categoria_nombre,
+           e.nombre as estado_nombre,
+           e.color as estado_color,
+           p.nombre as prioridad_nombre,
+           u_asig.nombres as asignado_nombres,
+           u_asig.apellidos as asignado_apellidos
+    FROM tickets t
+    LEFT JOIN categorias c ON t.categoria_id = c.id
+    LEFT JOIN estados e ON t.estado_id = e.id
+    LEFT JOIN prioridades p ON t.prioridad_id = p.id
+    LEFT JOIN usuarios u_asig ON t.asignado_id = u_asig.id
+    WHERE t.ciudadano_id = ?
+    ORDER BY t.created_at DESC
+    LIMIT 100
+", [$usuario['id']]);
 $stats = [
     'total' => count($tickets),
     'pendientes' => count(array_filter($tickets, fn($t) => $t['estado_id'] == 1)),
     'en_proceso' => count(array_filter($tickets, fn($t) => in_array($t['estado_id'], [2, 3, 4]))),
     'resueltos' => count(array_filter($tickets, fn($t) => in_array($t['estado_id'], [5, 6])))
 ];
+
+// Verificar si el usuario es del departamento TI (departamento_id = 2)
+$esDepartamentoTI = ($usuario['departamento_id'] == 2);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -27,6 +47,16 @@ $stats = [
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/assets/css/style.css">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        main {
+            flex: 1;
+        }
+    </style>
 </head>
 <body>
     <!-- Header -->
@@ -39,19 +69,19 @@ $stats = [
                     </div>
                     <div class="header-titulo">
                         <h1>Municipalidad</h1>
-                        <span>Portal Ciudadano</span>
+                        <span>Portal Funcionario</span>
                     </div>
                 </div>
                 <nav class="header-nav">
                     <a href="/">Inicio</a>
                     <a href="/nuevo-ticket.php">Nueva Solicitud</a>
-                    <a href="/ciudadano/mis-tickets.php" style="font-weight: 600;">Mis Tickets</a>
+                    <a href="/funcionario/mis-tickets.php" style="font-weight: 600;">Mis Tickets</a>
                     <div style="display: flex; align-items: center; gap: var(--espaciado-sm); margin-left: var(--espaciado-md); padding-left: var(--espaciado-md); border-left: 1px solid rgba(255,255,255,0.3);">
                         <div style="width:36px;height:36px;background:var(--color-acento);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;">
                             <?= strtoupper(substr($usuario['nombres'], 0, 1)) ?>
                         </div>
                         <span><?= htmlspecialchars($usuario['nombres']) ?></span>
-                        <a href="/logout.php" title="Cerrar Sesión" style="color: white; margin-left: var(--espaciado-sm);">
+                        <a href="/logout.php" title="Cerrar Sesión" style="color: #000000; margin-left: var(--espaciado-sm);">
                             <i class="bi bi-box-arrow-right"></i>
                         </a>
                     </div>
@@ -78,7 +108,7 @@ $stats = [
         </div>
         
         <!-- Estadísticas -->
-        <div class="estadisticas-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="estadisticas-grid" style="grid-template-columns: repeat(<?= $esDepartamentoTI ? '4' : '1' ?>, 1fr);">
             <div class="stat-card">
                 <div class="stat-icono primario"><i class="bi bi-ticket"></i></div>
                 <div class="stat-info">
@@ -86,6 +116,7 @@ $stats = [
                     <div class="stat-etiqueta">Total</div>
                 </div>
             </div>
+            <?php if ($esDepartamentoTI): ?>
             <div class="stat-card">
                 <div class="stat-icono advertencia"><i class="bi bi-clock"></i></div>
                 <div class="stat-info">
@@ -107,6 +138,7 @@ $stats = [
                     <div class="stat-etiqueta">Resueltos</div>
                 </div>
             </div>
+            <?php endif; ?>
         </div>
         
         <!-- Listado de Tickets -->
@@ -145,13 +177,12 @@ $stats = [
                             <td class="ticket-numero"><?= htmlspecialchars($t['numero']) ?></td>
                             <td class="ticket-asunto"><?= htmlspecialchars($t['asunto']) ?></td>
                             <td>
-                                <small style="color: var(--gris-400); display: block;"><?= htmlspecialchars($t['departamento'] ?? '') ?></small>
-                                <?= htmlspecialchars($t['categoria'] ?? '-') ?>
+                                <?= htmlspecialchars($t['categoria_nombre'] ?? '-') ?>
                             </td>
                             <td>
                                 <?php if ($t['estado_id'] != 1): ?>
                                 <span class="badge badge-estado" style="background: <?= $t['estado_color'] ?>">
-                                    <?= htmlspecialchars($t['estado']) ?>
+                                    <?= htmlspecialchars($t['estado_nombre']) ?>
                                 </span>
                                 <?php else: ?>
                                 <span class="badge badge-estado" style="background: #6c757d">
@@ -164,7 +195,7 @@ $stats = [
                                 <small style="color: var(--gris-400);"><?= tiempoTranscurrido($t['created_at']) ?></small>
                             </td>
                             <td>
-                                <a href="/ciudadano/ticket.php?id=<?= $t['id'] ?>" class="btn btn-sm btn-secundario">
+                                <a href="/funcionario/ticket.php?id=<?= $t['id'] ?>" class="btn btn-sm btn-secundario">
                                     <i class="bi bi-eye"></i> Ver
                                 </a>
                             </td>
