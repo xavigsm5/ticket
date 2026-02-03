@@ -3,14 +3,21 @@ FROM php:8.2-apache
 # Descargar script de instalación de extensiones (más robusto)
 ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
 
-# Instalar extensiones y dependencias
-RUN install-php-extensions pdo pdo_pgsql pgsql imap zip
-
-# Instalar herramientas básicas y Composer
+# Instalar librerías necesarias para GD con soporte WebP
 RUN apt-get update && apt-get install -y \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libwebp-dev \
+    libxpm-dev \
     unzip \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar extensiones PHP
+RUN install-php-extensions pdo pdo_pgsql pgsql imap zip gd
+
+# Instalar Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
 # Habilitar mod_rewrite
 RUN a2enmod rewrite

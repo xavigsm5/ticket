@@ -496,3 +496,53 @@ function registrarHistorial($ticket_id, $usuario_id, $accion, $descripcion, $val
         [$ticket_id, $usuario_id, $accion, $descripcion, $valor_anterior, $valor_nuevo]
     );
 }
+
+/**
+ * Obtiene los adjuntos de un ticket
+ * 
+ * @param int $ticket_id ID del ticket
+ * @return array Lista de adjuntos
+ */
+function obtenerAdjuntosTicket($ticket_id)
+{
+    require_once __DIR__ . '/ImageHandler.php';
+    return ImageHandler::obtenerAdjuntosTicket($ticket_id);
+}
+
+/**
+ * Muestra HTML para los adjuntos de un ticket
+ * 
+ * @param int $ticket_id ID del ticket
+ * @return string HTML con los adjuntos
+ */
+function mostrarAdjuntosHTML($ticket_id)
+{
+    $adjuntos = obtenerAdjuntosTicket($ticket_id);
+    
+    if (empty($adjuntos)) {
+        return '';
+    }
+    
+    $html = '<div class="adjuntos-lista mb-3">';
+    $html .= '<h6><i class="bi bi-paperclip"></i> Archivos Adjuntos (' . count($adjuntos) . ')</h6>';
+    $html .= '<div class="list-group">';
+    
+    foreach ($adjuntos as $adjunto) {
+        $icono = $adjunto['es_imagen'] ? 'bi-image' : 'bi-file-earmark';
+        $tamano_kb = round($adjunto['tamano'] / 1024, 2);
+        $badge_webp = $adjunto['convertido_webp'] ? ' <span class="badge bg-success">WebP</span>' : '';
+        
+        $html .= '<a href="/descargar-adjunto.php?id=' . $adjunto['id'] . '" class="list-group-item list-group-item-action" target="_blank">';
+        $html .= '<i class="bi ' . $icono . '"></i> ';
+        $html .= htmlspecialchars($adjunto['nombre_original']);
+        $html .= ' <small class="text-muted">(' . $tamano_kb . ' KB)</small>';
+        $html .= $badge_webp;
+        $html .= '</a>';
+    }
+    
+    $html .= '</div>';
+    $html .= '</div>';
+    
+    return $html;
+}
+

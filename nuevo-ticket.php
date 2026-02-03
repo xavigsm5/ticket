@@ -4,6 +4,7 @@
  */
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/freshdesk_functions.php';
+require_once __DIR__ . '/includes/ImageHandler.php';
 
 
 $categorias = obtenerTodasCategorias();
@@ -67,31 +68,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ticket_id) {
             // Procesar archivos adjuntos
             if (!empty($_FILES['adjuntos']['name'][0])) {
-                $upload_dir = __DIR__ . '/uploads/attachments/';
-                if (!file_exists($upload_dir)) {
-                    mkdir($upload_dir, 0755, true);
-                }
-                
                 foreach ($_FILES['adjuntos']['tmp_name'] as $key => $tmp_name) {
                     if ($_FILES['adjuntos']['error'][$key] === UPLOAD_ERR_OK) {
-                        $nombre_archivo = basename($_FILES['adjuntos']['name'][$key]);
-                        $extension = pathinfo($nombre_archivo, PATHINFO_EXTENSION);
-                        $nombre_unico = time() . '_' . uniqid() . '.' . $extension;
-                        $ruta_destino = $upload_dir . $nombre_unico;
+                        $archivo = [
+                            'name' => $_FILES['adjuntos']['name'][$key],
+                            'type' => $_FILES['adjuntos']['type'][$key],
+                            'size' => $_FILES['adjuntos']['size'][$key],
+                            'tmp_name' => $tmp_name
+                        ];
                         
-                        if (move_uploaded_file($tmp_name, $ruta_destino)) {
-                            // Guardar en base de datos
-                            $db->query(
-                                "INSERT INTO ticket_adjuntos (ticket_id, nombre_archivo, ruta_archivo, tamano, tipo_mime) 
-                                 VALUES (?, ?, ?, ?, ?)",
-                                [
-                                    $ticket_id,
-                                    $nombre_archivo,
-                                    'uploads/attachments/' . $nombre_unico,
-                                    $_FILES['adjuntos']['size'][$key],
-                                    $_FILES['adjuntos']['type'][$key]
-                                ]
-                            );
+                        // Procesar y guardar el adjunto (convierte imágenes a WebP automáticamente)
+                        $resultado = ImageHandler::procesarYGuardarAdjunto($ticket_id, $usuario_id, $archivo);
+                        
+                        if (!$resultado['success']) {
+                            // Registrar error pero continuar con otros archivos
+                            error_log("Error al procesar adjunto: " . $resultado['error']);
                         }
                     }
                 }
