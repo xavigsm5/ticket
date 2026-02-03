@@ -1,0 +1,44 @@
+═══════════════════════════════════════════════════════════
+  DESPLIEGUE RÁPIDO - SISTEMA DE TICKETS MUNICIPAL
+═══════════════════════════════════════════════════════════
+
+📋 PASOS PARA LEVANTAR EL SISTEMA:
+
+1️⃣  CLONAR REPOSITORIO
+   git clone https://github.com/TU_USUARIO/TU_REPOSITORIO.git
+   cd TU_REPOSITORIO
+
+2️⃣  LEVANTAR DOCKER
+   docker-compose up -d
+   
+   ⏳ Esperar 30 segundos a que la BD se inicialice
+
+3️⃣  INICIALIZAR BASE DE DATOS (PowerShell)
+   Get-Content database\schema.sql | docker exec -i tickets_db psql -U postgres -d tickets_municipal
+   Get-Content database\freshdesk_schema.sql | docker exec -i tickets_db psql -U postgres -d tickets_municipal
+   Get-Content database\freshdesk_features.sql | docker exec -i tickets_db psql -U postgres -d tickets_municipal
+   Get-Content database\update_adjuntos_bytea.sql | docker exec -i tickets_db psql -U postgres -d tickets_municipal
+   Get-Content database\crear_funcionarios_ti.sql | docker exec -i tickets_db psql -U postgres -d tickets_municipal
+
+4️⃣  ABRIR EN NAVEGADOR
+   http://localhost:8080
+
+═══════════════════════════════════════════════════════════
+
+👤 USUARIOS DE PRUEBA:
+
+   Admin:       admin@municipal.gob / admin123
+   Supervisor:  supervisor.ti@municipal.gob / supervisor123
+   Funcionario: funcionario.ti@municipal.gob / funcionario123
+
+═══════════════════════════════════════════════════════════
+
+✅ VERIFICAR INSTALACIÓN:
+   http://localhost:8080/verificar-webp.php
+
+═══════════════════════════════════════════════════════════
+
+🛑 DETENER SISTEMA:
+   docker-compose down
+
+═══════════════════════════════════════════════════════════
