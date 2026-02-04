@@ -1,14 +1,11 @@
 <?php
 /**
- * Funciones adicionales tipo Freshdesk
- * Sistema de Tickets Municipal
+ * Funciones avanzadas (SLA, etiquetas, respuestas, etc.)
  */
 
 require_once __DIR__ . '/functions.php';
 
-// ============================================
-// ETIQUETAS (TAGS)
-// ============================================
+// --- Etiquetas ---
 
 function obtenerEtiquetas()
 {
@@ -58,9 +55,7 @@ function crearEtiqueta($nombre, $color = '#6c757d')
     );
 }
 
-// ============================================
-// RESPUESTAS PREDEFINIDAS (CANNED RESPONSES)
-// ============================================
+// --- Respuestas predefinidas ---
 
 function obtenerRespuestasPredefinidas($departamento_id = null, $usuario_id = null)
 {
@@ -97,9 +92,7 @@ function crearRespuestaPredefinida($titulo, $contenido, $departamento_id = null,
     ", [$titulo, $contenido, $departamento_id, $usuario_id, $es_global]);
 }
 
-// ============================================
-// SLA (ACUERDOS DE NIVEL DE SERVICIO)
-// ============================================
+// --- SLA ---
 
 function obtenerPoliticasSLA()
 {
@@ -211,9 +204,7 @@ function formatearTiempoSLA($interval)
     }
 }
 
-// ============================================
-// SATISFACCIÓN DEL CLIENTE (CSAT)
-// ============================================
+// --- Satisfacción (CSAT) ---
 
 function crearEncuestaSatisfaccion($ticket_id)
 {
@@ -286,9 +277,7 @@ function obtenerEstadisticasCSAT($fecha_inicio = null, $fecha_fin = null)
     ", $params);
 }
 
-// ============================================
-// VISTAS PERSONALIZADAS
-// ============================================
+// --- Vistas personalizadas ---
 
 function obtenerVistasPersonalizadas($usuario_id)
 {
@@ -320,9 +309,7 @@ function aplicarFiltrosVista($vista_id)
     return json_decode($vista['filtros'], true) ?: [];
 }
 
-// ============================================
-// TICKETS RELACIONADOS Y FUSIÓN
-// ============================================
+// --- Tickets relacionados y fusión ---
 
 function fusionarTickets($ticket_principal_id, $ticket_secundario_id, $usuario_id)
 {
@@ -389,17 +376,12 @@ function relacionarTickets($ticket_id_1, $ticket_id_2, $tipo = 'relacionado')
     }
 }
 
-// ============================================
-// NOTIFICACIONES
-// ============================================
+// --- Notificaciones ---
 
 
 
 
-
-// ============================================
-// DETECCIÓN DE COLISIÓN
-// ============================================
+// --- Detección de colisión ---
 
 function registrarActividadTicket($ticket_id, $usuario_id, $accion = 'viendo')
 {
@@ -426,9 +408,7 @@ function obtenerUsuariosViendoTicket($ticket_id, $usuario_actual_id)
     ", [$ticket_id, $usuario_actual_id]);
 }
 
-// ============================================
-// AUTOMATIZACIONES (Ejecución básica)
-// ============================================
+// --- Automatizaciones ---
 
 function ejecutarAutomatizaciones($evento, $ticket_id, $datos_extra = [])
 {
@@ -574,9 +554,7 @@ function obtenerTecnicoPorCategoria($categoria_id)
     return $asignacion;
 }
 
-// ============================================
-// CAMPOS PERSONALIZADOS
-// ============================================
+// --- Campos personalizados ---
 
 function obtenerCamposPersonalizados($departamento_id = null)
 {

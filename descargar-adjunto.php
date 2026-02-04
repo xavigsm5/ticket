@@ -1,6 +1,6 @@
 <?php
 /**
- * Descargar adjuntos desde la base de datos
+ * Descarga de adjuntos
  */
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/ImageHandler.php';
@@ -21,8 +21,42 @@ if (!$adjunto) {
     die('Adjunto no encontrado');
 }
 
-// Verificar permisos (opcional - ajustar según tu lógica de autenticación)
-// TODO: Agregar verificación de que el usuario tiene acceso al ticket
+// Verificar permisos - El usuario debe estar autenticado
+$usuario_actual = obtenerUsuarioActual();
+
+if (!$usuario_actual) {
+    // No autenticado - rechazar acceso
+    http_response_code(401);
+    die('Debe iniciar sesión para acceder a este archivo');
+}
+
+// Obtener el ticket relacionado al adjunto
+$db = Database::getInstance();
+$ticket = $db->fetch("SELECT id, ciudadano_id FROM tickets WHERE id = ?", [$adjunto['ticket_id']]);
+
+if (!$ticket) {
+    http_response_code(404);
+    die('Ticket no encontrado');
+}
+
+// Verificar permisos: 
+// - Admin/Supervisor/Soporte TI pueden ver todos los adjuntos
+// - El ciudadano que creó el ticket puede ver sus propios adjuntos
+// - Los demás no pueden verlos
+$puede_acceder = false;
+
+if (in_array($usuario_actual['rol'], ['admin', 'supervisor', 'soporte_ti'])) {
+    // Admin/Supervisor/Soporte TI tienen acceso a todo
+    $puede_acceder = true;
+} elseif ($usuario_actual['id'] == $ticket['ciudadano_id']) {
+    // El ciudadano que creó el ticket puede ver sus adjuntos
+    $puede_acceder = true;
+}
+
+if (!$puede_acceder) {
+    http_response_code(403);
+    die('No tiene permiso para acceder a este archivo');
+}
 
 // Decodificar el contenido base64
 $contenido = base64_decode($adjunto['contenido_base64']);
@@ -56,3 +90,4 @@ header('Pragma: no-cache');
 // Enviar el contenido
 echo $contenido;
 exit;
+

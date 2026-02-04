@@ -1,13 +1,11 @@
 <?php
 /**
- * Clase para manejar conversión de imágenes a WebP y almacenamiento
+ * Manejo de imágenes y conversión a WebP
  */
 
 class ImageHandler {
     
-    /**
-     * Tipos de imagen soportados para conversión a WebP
-     */
+    // Formatos de imagen soportados
     const SUPPORTED_IMAGE_TYPES = [
         'image/jpeg',
         'image/jpg', 
@@ -17,33 +15,20 @@ class ImageHandler {
         'image/webp'
     ];
     
-    /**
-     * Calidad de compresión WebP (0-100)
-     */
+    // Calidad WebP (0-100)
     const WEBP_QUALITY = 85;
     
-    /**
-     * Tamaño máximo para imágenes en bytes (5MB)
-     */
+    // Máximo 5MB por imagen
     const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
     
-    /**
-     * Verifica si el tipo MIME es una imagen soportada
-     */
+    // Valida si el MIME es imagen soportada
     public static function esImagenSoportada($mime_type) {
         return in_array(strtolower($mime_type), self::SUPPORTED_IMAGE_TYPES);
     }
     
-    /**
-     * Convierte una imagen a formato WebP
-     * 
-     * @param string $ruta_temporal Ruta al archivo temporal subido
-     * @param string $mime_type Tipo MIME de la imagen
-     * @return array ['success' => bool, 'data' => string|null, 'error' => string|null]
-     */
+    // Convierte imagen a WebP
     public static function convertirAWebP($ruta_temporal, $mime_type) {
         try {
-            // Verificar extensión GD y soporte WebP
             if (!extension_loaded('gd')) {
                 return [
                     'success' => false,
@@ -123,14 +108,7 @@ class ImageHandler {
         }
     }
     
-    /**
-     * Redimensiona una imagen si excede el tamaño máximo manteniendo la proporción
-     * 
-     * @param resource $imagen Recurso de imagen GD
-     * @param int $max_ancho Ancho máximo en pixeles
-     * @param int $max_alto Alto máximo en pixeles
-     * @return resource Recurso de imagen redimensionada
-     */
+    // Redimensiona imagen si es muy grande
     public static function redimensionarImagen($imagen, $max_ancho = 1920, $max_alto = 1080) {
         $ancho_actual = imagesx($imagen);
         $alto_actual = imagesy($imagen);
@@ -165,14 +143,7 @@ class ImageHandler {
         return $imagen_nueva;
     }
     
-    /**
-     * Procesa un archivo subido: convierte a WebP si es imagen, guarda en BD
-     * 
-     * @param int $ticket_id ID del ticket
-     * @param int $usuario_id ID del usuario que sube el archivo
-     * @param array $archivo Información del archivo de $_FILES
-     * @return array ['success' => bool, 'id' => int|null, 'error' => string|null]
-     */
+    // Procesa archivo subido y guarda en BD (convierte a WebP si es imagen)
     public static function procesarYGuardarAdjunto($ticket_id, $usuario_id, $archivo) {
         $nombre_original = basename($archivo['name']);
         $mime_type = $archivo['type'];
@@ -212,31 +183,32 @@ class ImageHandler {
         // Guardar en base de datos
         try {
             $db = Database::getInstance();
+            $pdo = $db->getConnection();
             
-            // Escapar el contenido binario para PostgreSQL
-            $contenido_escapado = pg_escape_bytea($contenido);
-            
-            $resultado = $db->query(
+            // Usar PDO para manejar datos binarios correctamente
+            $stmt = $pdo->prepare(
                 "INSERT INTO ticket_adjuntos 
                 (ticket_id, usuario_id, nombre_original, tipo_mime, tamano, contenido, es_imagen, convertido_webp) 
-                VALUES (?, ?, ?, ?, ?, decode(?, 'escape'), ?, ?) 
-                RETURNING id",
-                [
-                    $ticket_id,
-                    $usuario_id,
-                    $nombre_original,
-                    $mime_type,
-                    $tamano_original,
-                    $contenido_escapado,
-                    $es_imagen,
-                    $convertido_webp
-                ]
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?) 
+                RETURNING id"
             );
             
-            if ($resultado && isset($resultado[0]['id'])) {
+            $stmt->bindValue(1, $ticket_id, PDO::PARAM_INT);
+            $stmt->bindValue(2, $usuario_id, PDO::PARAM_INT);
+            $stmt->bindValue(3, $nombre_original, PDO::PARAM_STR);
+            $stmt->bindValue(4, $mime_type, PDO::PARAM_STR);
+            $stmt->bindValue(5, $tamano_original, PDO::PARAM_INT);
+            $stmt->bindValue(6, $contenido, PDO::PARAM_LOB);
+            $stmt->bindValue(7, $es_imagen, PDO::PARAM_BOOL);
+            $stmt->bindValue(8, $convertido_webp, PDO::PARAM_BOOL);
+            
+            $stmt->execute();
+            $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($resultado && isset($resultado['id'])) {
                 return [
                     'success' => true,
-                    'id' => $resultado[0]['id'],
+                    'id' => $resultado['id'],
                     'error' => null,
                     'convertido_webp' => $convertido_webp,
                     'tamano_final' => $tamano_original
@@ -258,12 +230,7 @@ class ImageHandler {
         }
     }
     
-    /**
-     * Obtiene un adjunto de la base de datos
-     * 
-     * @param int $adjunto_id ID del adjunto
-     * @return array|null Array con información del adjunto o null si no existe
-     */
+    // Obtener adjunto por ID
     public static function obtenerAdjunto($adjunto_id) {
         $db = Database::getInstance();
         
@@ -279,12 +246,7 @@ class ImageHandler {
         return $adjunto;
     }
     
-    /**
-     * Obtiene adjuntos de un ticket
-     * 
-     * @param int $ticket_id ID del ticket
-     * @return array Lista de adjuntos
-     */
+    // Listar adjuntos de un ticket
     public static function obtenerAdjuntosTicket($ticket_id) {
         $db = Database::getInstance();
         

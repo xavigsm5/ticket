@@ -1,7 +1,6 @@
 <?php
 /**
- * Mesa de Ayuda TI - Página Principal
- * Área de Informática Municipal
+ * Página principal - Mesa de Ayuda TI
  */
 require_once __DIR__ . '/includes/functions.php';
 
@@ -9,7 +8,8 @@ require_once __DIR__ . '/includes/functions.php';
 if (estaAutenticado()) {
     $usuario = obtenerUsuarioActual();
     if (in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
-        header('Location: /admin/dashboard.php');
+        $baseUrl = getBaseUrl();
+        header('Location: ' . $baseUrl . '/admin/dashboard.php');
         exit;
     }
 }

@@ -1,6 +1,6 @@
 <?php
 /**
- * Nueva Solicitud de Soporte TI
+ * Crear nuevo ticket
  */
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/freshdesk_functions.php';

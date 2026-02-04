@@ -1,6 +1,6 @@
 <?php
 /**
- * Detalle de Ticket - Panel Administrativo
+ * Detalle del ticket (admin)
  */
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/freshdesk_functions.php';
@@ -257,6 +257,15 @@ $respuestas_predefinidas = obtenerRespuestasPredefinidas(null, $usuario['id']);
                                         <span
                                             style="color: var(--gris-600);"><?= htmlspecialchars($ticket['ubicacion_direccion']) ?></span>
                                     </div>
+                                <?php endif; ?>
+                                
+                                <?php 
+                                $adjuntos_html = mostrarAdjuntosHTML($ticket['id']);
+                                if (!empty($adjuntos_html)):
+                                ?>
+                                <div style="margin-top: var(--espaciado-lg); padding-top: var(--espaciado-lg); border-top: 1px solid var(--gris-200);">
+                                    <?= $adjuntos_html ?>
+                                </div>
                                 <?php endif; ?>
                             </div>
                         </div>

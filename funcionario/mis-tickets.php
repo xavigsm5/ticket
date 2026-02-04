@@ -1,6 +1,6 @@
 <?php
 /**
- * Mis Tickets - Portal Funcionario
+ * Mis tickets (portal funcionario)
  */
 require_once __DIR__ . '/../includes/functions.php';
 

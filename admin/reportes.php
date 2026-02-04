@@ -1,6 +1,6 @@
 <?php
 /**
- * Reportes y Estadísticas - Estilo Freshdesk
+ * Reportes y estadísticas
  */
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/freshdesk_functions.php';

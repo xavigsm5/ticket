@@ -1,7 +1,6 @@
 <?php
 /**
- * Callback de Azure AD - Sistema de Tickets Municipal
- * Maneja el retorno de autenticación OAuth2 con Microsoft 365
+ * Callback OAuth2 de Azure AD
  */
 
 require_once __DIR__ . '/vendor/autoload.php';
@@ -105,7 +104,7 @@ try {
         }
         
         // Validar que sea de un dominio permitido
-        $dominiosPermitidos = ['@quintanormal.cl', '@municipalidad.cl'];
+        $dominiosPermitidos = ['@quintanormal.cl', '@municipalidad.cl', '@caschile.cl'];
         $dominioValido = false;
         
         foreach ($dominiosPermitidos as $dominio) {
@@ -194,7 +193,8 @@ try {
                 guardarTokensOAuth($db, $nuevoUsuario['id'], $tokenValue, $refreshToken, $expiresAt);
                 
                 // Redirigir al dashboard de funcionario
-                header('Location: /admin/dashboard.php');
+                $baseUrl = $_ENV['APP_URL'] ?? '';
+                header('Location: ' . $baseUrl . '/funcionario/mis-tickets.php');
                 exit;
             } else {
                 mostrarError('Error al crear la cuenta de usuario.');
@@ -255,10 +255,12 @@ function guardarTokensOAuth($db, $usuario_id, $accessToken, $refreshToken, $expi
  * Redirige al usuario según su rol
  */
 function redirigirSegunRol($rol) {
+    $baseUrl = $_ENV['APP_URL'] ?? '';
+    
     if (in_array($rol, ['admin', 'soporte_ti'])) {
-        header('Location: /admin/dashboard.php');
+        header('Location: ' . $baseUrl . '/admin/dashboard.php');
     } else {
-        header('Location: /funcionario/mis-tickets.php');
+        header('Location: ' . $baseUrl . '/funcionario/mis-tickets.php');
     }
     exit;
 }

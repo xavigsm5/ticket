@@ -1,6 +1,6 @@
 <?php
 /**
- * Gestión de Automatizaciones
+ * Automatizaciones de tickets
  */
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/freshdesk_functions.php';

@@ -1,6 +1,6 @@
 <?php
 /**
- * Funciones del Sistema de Tickets Municipal
+ * Funciones principales del sistema
  */
 
 // Establecer charset UTF-8 para todas las páginas
@@ -95,10 +95,24 @@ function tieneRol($roles)
     return in_array($usuario['rol'], is_array($roles) ? $roles : [$roles]);
 }
 
+// Obtener URL base desde .env o generar una
+function getBaseUrl() {
+    // Intentar cargar desde .env si existe
+    if (isset($_ENV['APP_URL']) && !empty($_ENV['APP_URL'])) {
+        return rtrim($_ENV['APP_URL'], '/');
+    }
+    
+    // Fallback: construir desde variables de servidor
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    return $protocol . '://' . $host;
+}
+
 function requiereAutenticacion()
 {
     if (!estaAutenticado()) {
-        header('Location: /login.php');
+        $baseUrl = getBaseUrl();
+        header('Location: ' . $baseUrl . '/login.php');
         exit;
     }
 }
@@ -107,7 +121,8 @@ function requiereRol($roles)
 {
     requiereAutenticacion();
     if (!tieneRol($roles)) {
-        header('Location: /sin-permiso.php');
+        $baseUrl = getBaseUrl();
+        header('Location: ' . $baseUrl . '/sin-permiso.php');
         exit;
     }
 }
@@ -190,9 +205,7 @@ function crearTicket($datos)
     return $ticketCreado;
 }
 
-/**
- * Enviar notificación por correo al funcionario asignado y administrador
- */
+// Notificar por correo al técnico asignado
 function enviarNotificacionNuevoTicketATI($ticket, $datos)
 {
     try {
@@ -405,6 +418,31 @@ function agregarComentario($ticket_id, $usuario_id, $comentario, $es_interno = f
     $es_interno_pg = $es_interno ? 'true' : 'false';
     $db->query("INSERT INTO ticket_comentarios (ticket_id, usuario_id, comentario, es_interno) VALUES (?, ?, ?, ?)", [$ticket_id, $usuario_id, $comentario, $es_interno_pg]);
     $db->query("UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [$ticket_id]);
+    
+    // Enviar notificación al ciudadano si es respuesta de admin/supervisor/soporte_ti y NO es interno
+    if (!$es_interno) {
+        $usuario = $db->fetch("SELECT id, rol FROM usuarios WHERE id = ?", [$usuario_id]);
+        if ($usuario && in_array($usuario['rol'], ['admin', 'supervisor', 'funcionario', 'soporte_ti'])) {
+            $ticket = obtenerTicket($ticket_id);
+            if ($ticket && $ticket['ciudadano_email']) {
+                error_log("Intentando enviar notificación a: " . $ticket['ciudadano_email']);
+                $resultado = enviarNotificacionRespuestaTicket($ticket, $usuario_id, $comentario);
+                if ($resultado) {
+                    error_log("Notificación enviada exitosamente a: " . $ticket['ciudadano_email']);
+                } else {
+                    error_log("Fallo al enviar notificación a: " . $ticket['ciudadano_email']);
+                }
+            } else {
+                if (!$ticket) {
+                    error_log("Error: Ticket no encontrado para ID: $ticket_id");
+                }
+                if (!$ticket['ciudadano_email']) {
+                    error_log("Error: Ticket sin email de ciudadano. Ticket ID: $ticket_id");
+                }
+            }
+        }
+    }
+    
     return true;
 }
 
@@ -523,26 +561,218 @@ function mostrarAdjuntosHTML($ticket_id)
         return '';
     }
     
-    $html = '<div class="adjuntos-lista mb-3">';
-    $html .= '<h6><i class="bi bi-paperclip"></i> Archivos Adjuntos (' . count($adjuntos) . ')</h6>';
-    $html .= '<div class="list-group">';
+    $html = '<div class="adjuntos-lista">';
+    $html .= '<h6 style="margin-bottom: 12px;"><i class="bi bi-paperclip"></i> Archivos Adjuntos (' . count($adjuntos) . ')</h6>';
+    
+    // Separar imágenes de otros archivos
+    $imagenes = [];
+    $otros_archivos = [];
     
     foreach ($adjuntos as $adjunto) {
-        $icono = $adjunto['es_imagen'] ? 'bi-image' : 'bi-file-earmark';
-        $tamano_kb = round($adjunto['tamano'] / 1024, 2);
-        $badge_webp = $adjunto['convertido_webp'] ? ' <span class="badge bg-success">WebP</span>' : '';
-        
-        $html .= '<a href="/descargar-adjunto.php?id=' . $adjunto['id'] . '" class="list-group-item list-group-item-action" target="_blank">';
-        $html .= '<i class="bi ' . $icono . '"></i> ';
-        $html .= htmlspecialchars($adjunto['nombre_original']);
-        $html .= ' <small class="text-muted">(' . $tamano_kb . ' KB)</small>';
-        $html .= $badge_webp;
-        $html .= '</a>';
+        if ($adjunto['es_imagen']) {
+            $imagenes[] = $adjunto;
+        } else {
+            $otros_archivos[] = $adjunto;
+        }
     }
     
-    $html .= '</div>';
+    // Mostrar previsualizaciones de imágenes
+    if (!empty($imagenes)) {
+        $html .= '<div class="galeria-adjuntos" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">';
+        
+        foreach ($imagenes as $img) {
+            $html .= '<div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #f7fafc;">';
+            $html .= '<a href="/descargar-adjunto.php?id=' . $img['id'] . '" target="_blank" style="display: block; text-decoration: none; height: 140px; overflow: hidden;">';
+            $html .= '<img src="/descargar-adjunto.php?id=' . $img['id'] . '" alt="' . htmlspecialchars($img['nombre_original']) . '" style="width: 100%; height: 100%; object-fit: cover; cursor: pointer;">';
+            $html .= '</a>';
+            $html .= '<div style="padding: 8px; font-size: 0.75rem; text-align: center; border-top: 1px solid #e2e8f0; background: white;">';
+            $html .= '<small style="color: #718096; display: block; word-break: break-word;">' . htmlspecialchars(substr($img['nombre_original'], 0, 20)) . '</small>';
+            if ($img['convertido_webp']) {
+                $html .= '<span class="badge bg-success" style="font-size: 0.65rem; margin-top: 4px;">WebP</span>';
+            }
+            $html .= '</div>';
+            $html .= '</div>';
+        }
+        
+        $html .= '</div>';
+    }
+    
+    // Mostrar otros archivos como lista
+    if (!empty($otros_archivos)) {
+        $html .= '<div class="lista-archivos">';
+        $html .= '<div style="margin-bottom: 8px; font-size: 0.875rem; font-weight: 500; color: #2d3748;">Otros Archivos</div>';
+        $html .= '<div class="list-group" style="list-style: none; padding: 0;">';
+        
+        foreach ($otros_archivos as $archivo) {
+            $tamano_kb = round($archivo['tamano'] / 1024, 2);
+            $html .= '<a href="/descargar-adjunto.php?id=' . $archivo['id'] . '" class="list-group-item list-group-item-action" target="_blank" style="padding: 8px 12px; border: 1px solid #e2e8f0; margin-bottom: 4px; border-radius: 4px; text-decoration: none; color: inherit; display: flex; align-items: center; gap: 8px;">';
+            $html .= '<i class="bi bi-file-earmark"></i>';
+            $html .= '<span style="flex: 1;">' . htmlspecialchars($archivo['nombre_original']) . '</span>';
+            $html .= '<small style="color: #718096;">(' . $tamano_kb . ' KB)</small>';
+            $html .= '</a>';
+        }
+        
+        $html .= '</div>';
+        $html .= '</div>';
+    }
+    
     $html .= '</div>';
     
     return $html;
 }
+
+/**
+ * Enviar notificación de respuesta al ciudadano que creó el ticket
+ */
+function enviarNotificacionRespuestaTicket($ticket, $usuario_respondente_id, $comentario)
+{
+    try {
+        $db = Database::getInstance();
+        
+        // Obtener datos del usuario que responde
+        $usuario_respondente = $db->fetch("SELECT id, nombres, apellidos, email FROM usuarios WHERE id = ?", [$usuario_respondente_id]);
+        
+        if (!$usuario_respondente) {
+            error_log("Error: Usuario respondente no encontrado. ID: $usuario_respondente_id");
+            return false;
+        }
+        
+        if (!$ticket['ciudadano_email']) {
+            error_log("Error: Email del ciudadano no disponible en ticket ID: " . $ticket['id']);
+            return false;
+        }
+        
+        // Preparar contenido HTML del correo
+        $nombre_respondente = $usuario_respondente['nombres'] . ' ' . $usuario_respondente['apellidos'];
+        $baseUrl = getBaseUrl();
+        
+        error_log("Preparando correo para: " . $ticket['ciudadano_email'] . " desde: " . $nombre_respondente);
+        
+        $html = "
+            <html>
+            <head>
+                <meta charset='UTF-8'>
+                <style>
+                    body { font-family: Arial, sans-serif; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background-color: #0066cc; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
+                    .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-radius: 0 0 5px 5px; }
+                    .ticket-info { background-color: white; padding: 10px; margin: 10px 0; border-left: 4px solid #0066cc; }
+                    .mensaje-box { background-color: white; padding: 15px; margin: 15px 0; border-radius: 5px; border: 1px solid #e0e0e0; }
+                    .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+                    .button { display: inline-block; background-color: #0066cc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class='container'>
+                    <div class='header'>
+                        <h2>✉ Ha recibido una respuesta a su ticket</h2>
+                    </div>
+                    <div class='content'>
+                        <p>Estimado,</p>
+                        
+                        <p><strong>$nombre_respondente</strong> del área de Informática ha respondido a su solicitud.</p>
+                        
+                        <div class='ticket-info'>
+                            <strong>Detalle del Ticket:</strong><br>
+                            <strong>Ticket:</strong> {$ticket['numero']}<br>
+                            <strong>Asunto:</strong> {$ticket['asunto']}<br>
+                            <strong>Categoría:</strong> {$ticket['categoria']}<br>
+                            <strong>Estado:</strong> <span style='color: white; background-color: {$ticket['estado_color']}; padding: 3px 8px; border-radius: 3px;'>{$ticket['estado']}</span>
+                        </div>
+                        
+                        <div class='mensaje-box'>
+                            <strong>Respuesta:</strong><br>
+                            <br>
+                            " . nl2br(htmlspecialchars($comentario)) . "
+                        </div>
+                        
+                        <p>Puede acceder al sistema para ver más detalles y continuar la comunicación si lo requiere.</p>
+                        
+                        <a href='$baseUrl/funcionario/ticket.php?id={$ticket['id']}' class='button'>Ir al Sistema</a>
+                        
+                        <div class='footer'>
+                            <p><strong>Sistema de Tickets - Mesa de Ayuda Municipal</strong></p>
+                            <p>Este es un correo automático. Por favor, no responda a este correo directamente. Use el sistema de tickets para comunicarse.</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+        
+        // Cargar MailHandler si no está cargado
+        if (!class_exists('MailHandler')) {
+            require_once __DIR__ . '/MailHandler.php';
+        }
+        
+        error_log("Creando instancia de MailHandler...");
+        $mailHandler = new MailHandler();
+        
+        $resultado = false;
+        
+        // 1. Intentar con tokens del usuario que responde
+        error_log("Intentando enviar correo a: " . $ticket['ciudadano_email'] . " usando Graph API desde usuario ID: " . $usuario_respondente_id);
+        
+        // Verificar si el usuario tiene tokens OAuth
+        $tokenUsuario = $db->fetch("SELECT id FROM oauth_tokens WHERE usuario_id = ?", [$usuario_respondente_id]);
+        
+        if ($tokenUsuario) {
+            $resultado = $mailHandler->enviarCorreoDesdeUsuario(
+                $usuario_respondente_id,
+                $ticket['ciudadano_email'],
+                "Respuesta a tu ticket [{$ticket['numero']}]",
+                $html
+            );
+        }
+        
+        // 2. Si no tiene tokens o falló, buscar cualquier cuenta del sistema con tokens válidos
+        if (!$resultado) {
+            error_log("Usuario sin tokens o Graph API falló. Buscando cuenta del sistema con tokens...");
+            
+            $cuentaSistema = $db->fetch(
+                "SELECT ot.usuario_id, u.email 
+                 FROM oauth_tokens ot 
+                 JOIN usuarios u ON ot.usuario_id = u.id 
+                 WHERE ot.expires_at > NOW() 
+                 ORDER BY ot.expires_at DESC 
+                 LIMIT 1"
+            );
+            
+            if ($cuentaSistema) {
+                error_log("Usando cuenta del sistema: " . $cuentaSistema['email'] . " (ID: " . $cuentaSistema['usuario_id'] . ")");
+                $resultado = $mailHandler->enviarCorreoDesdeUsuario(
+                    $cuentaSistema['usuario_id'],
+                    $ticket['ciudadano_email'],
+                    "Respuesta a tu ticket [{$ticket['numero']}]",
+                    $html
+                );
+            }
+        }
+        
+        // 3. Como último recurso, intentar SMTP tradicional
+        if (!$resultado) {
+            error_log("Graph API falló, intentando con SMTP tradicional...");
+            $resultado = $mailHandler->enviarCorreo(
+                $ticket['ciudadano_email'],
+                "Respuesta a tu ticket [{$ticket['numero']}]",
+                $html
+            );
+        }
+        
+        if ($resultado) {
+            error_log("✓ Correo enviado exitosamente a: " . $ticket['ciudadano_email']);
+        } else {
+            error_log("✗ Fallo al enviar correo a: " . $ticket['ciudadano_email']);
+        }
+        
+        return $resultado;
+        
+    } catch (Exception $e) {
+        error_log("Exception en enviarNotificacionRespuestaTicket: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
+        return false;
+    }
+}
+
 

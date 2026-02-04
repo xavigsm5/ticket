@@ -408,15 +408,15 @@ class MailHandler
     }
 
     /**
-     * Obtener la firma de correo configurada en Outlook del usuario
      * 
-     * @param string $accessToken Token de acceso OAuth2
-     * @return string|false Firma HTML o false si no hay/falla
+     * 
+     * @param string 
+     * @return string|false 
      */
     private function obtenerFirmaOutlook($accessToken)
     {
         try {
-            // Obtener la configuración de mailbox settings del usuario
+            
             $url = 'https://graph.microsoft.com/v1.0/me/mailboxSettings';
             
             $ch = curl_init($url);
@@ -433,15 +433,7 @@ class MailHandler
             if ($httpCode === 200) {
                 $data = json_decode($response, true);
                 
-                // La firma está en automaticRepliesSetting pero no siempre está disponible vía API
-                // Como alternativa, intentamos obtener un borrador reciente que podría contener la firma
-                // O simplemente retornamos una firma genérica si el usuario la tiene configurada
-                
-                // Por ahora, Microsoft Graph API no expone directamente las firmas de Outlook
-                // La mejor alternativa es que el usuario configure su firma en el sistema
-                // o extraerla del primer correo enviado
-                
-                return false; // No disponible vía API estándar
+                return false; 
             }
             
             return false;
@@ -453,16 +445,16 @@ class MailHandler
     }
 
     /**
-     * Refrescar el access token usando el refresh token
+     *
      * 
-     * @param int $usuario_id ID del usuario
-     * @param string $refreshToken Refresh token actual
-     * @return string|false Nuevo access token o false si falla
+     * @param int 
+     * @param string 
+     * @return string|false 
      */
     private function refrescarTokenOAuth($usuario_id, $refreshToken)
     {
         try {
-            // Cargar variables de entorno
+            
             $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
             $dotenv->load();
             
@@ -478,17 +470,17 @@ class MailHandler
                 'defaultEndPointVersion'  => '2.0',
             ]);
             
-            // Obtener nuevo access token usando el refresh token
+           
             $newAccessToken = $provider->getAccessToken('refresh_token', [
                 'refresh_token' => $refreshToken
             ]);
             
-            // Extraer datos del nuevo token
+            
             $tokenValue = $newAccessToken->getToken();
-            $newRefreshToken = $newAccessToken->getRefreshToken() ?: $refreshToken; // A veces no devuelve nuevo refresh token
+            $newRefreshToken = $newAccessToken->getRefreshToken() ?: $refreshToken; 
             $expiresAt = date('Y-m-d H:i:s', $newAccessToken->getExpires());
             
-            // Actualizar en la base de datos
+            
             $this->pdo->query(
                 "UPDATE oauth_tokens 
                  SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP 

@@ -1,6 +1,6 @@
 <?php
 /**
- * Cerrar Sesión
+ * Cerrar sesión
  */
 require_once __DIR__ . '/includes/functions.php';
 
@@ -11,5 +11,6 @@ $_SESSION = [];
 session_destroy();
 
 // Redirigir al inicio
-header('Location: /login.php?logout=1');
+$baseUrl = getBaseUrl();
+header('Location: ' . $baseUrl . '/login.php?logout=1');
 exit;

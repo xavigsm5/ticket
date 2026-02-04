@@ -1,7 +1,6 @@
 <?php
 /**
- * Configuración de Base de Datos PostgreSQL
- * Sistema de Tickets Municipalidad
+ * Conexión a PostgreSQL
  */
 
 // Configuración - Soporta Docker (variables de entorno) y local

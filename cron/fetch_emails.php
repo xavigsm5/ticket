@@ -1,7 +1,7 @@
 <?php
 /**
- * CRON SCRIPT - Ejecutar cada 5 minutos
- * php cron/fetch_emails.php
+ * Cron para procesar correos entrantes
+ * Ejecutar cada 5 min: php cron/fetch_emails.php
  */
 
 require_once __DIR__ . '/../includes/MailHandler.php';

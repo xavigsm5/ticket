@@ -6,15 +6,23 @@ ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/relea
 # Instalar librerías necesarias para GD con soporte WebP
 RUN apt-get update && apt-get install -y \
     libpng-dev \
-    libjpeg-dev \
+    libjpeg62-turbo-dev \
     libfreetype6-dev \
     libwebp-dev \
     libxpm-dev \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar extensiones PHP
-RUN install-php-extensions pdo pdo_pgsql pgsql imap zip gd
+# Configurar e instalar GD manualmente con soporte WebP
+RUN docker-php-ext-configure gd \
+    --with-freetype \
+    --with-jpeg \
+    --with-webp \
+    --with-xpm \
+    && docker-php-ext-install -j$(nproc) gd
+
+# Instalar otras extensiones PHP necesarias
+RUN install-php-extensions pdo pdo_pgsql pgsql imap zip
 
 # Instalar Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer

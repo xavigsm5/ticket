@@ -1,6 +1,6 @@
 <?php
 /**
- * Ver Ticket - Portal Funcionario
+ * Detalle del ticket (funcionario)
  */
 require_once __DIR__ . '/../includes/functions.php';
 
@@ -128,6 +128,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['comentario']) && !emp
                         <div style="margin-top: var(--espaciado-lg); padding: var(--espaciado-md); background: var(--gris-50); border-radius: var(--radio-md);">
                             <i class="bi bi-geo-alt"></i> 
                             <strong>Ubicación:</strong> <?= htmlspecialchars($ticket['ubicacion_direccion']) ?>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php 
+                        $adjuntos_html = mostrarAdjuntosHTML($id);
+                        if (!empty($adjuntos_html)):
+                        ?>
+                        <div style="margin-top: var(--espaciado-lg); padding-top: var(--espaciado-lg); border-top: 1px solid var(--gris-200);">
+                            <?= $adjuntos_html ?>
                         </div>
                         <?php endif; ?>
                     </div>

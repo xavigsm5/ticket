@@ -1,6 +1,6 @@
 <?php
 /**
- * Encuesta de Satisfacción - CSAT
+ * Encuesta de satisfacción
  */
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/freshdesk_functions.php';

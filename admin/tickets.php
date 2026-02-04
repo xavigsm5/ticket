@@ -1,6 +1,6 @@
 <?php
 /**
- * Listado de Tickets - Panel Administrativo
+ * Listado de Tickets
  */
 require_once __DIR__ . '/../includes/functions.php';
 

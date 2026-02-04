@@ -1,6 +1,6 @@
 <?php
 /**
- * Gestión de Usuarios - Panel Administrativo
+ * Gestión de Usuarios
  */
 require_once __DIR__ . '/../includes/functions.php';
 
@@ -14,12 +14,10 @@ $error = '';
 $accion = $_GET['accion'] ?? 'listar';
 $id_editar = (int) ($_GET['id'] ?? 0);
 
-// ==========================================
-// ELIMINAR USUARIO
-// ==========================================
+// Eliminar usuario
 if (isset($_POST['eliminar_id'])) {
     $id_borrar = (int) $_POST['eliminar_id'];
-    if ($id_borrar !== $usuario_actual['id']) { // No auto-borrarse
+    if ($id_borrar !== $usuario_actual['id']) {
         $db->query("UPDATE usuarios SET activo = FALSE WHERE id = ?", [$id_borrar]);
         $exito = 'Usuario desactivado correctamente.';
     } else {
@@ -27,9 +25,7 @@ if (isset($_POST['eliminar_id'])) {
     }
 }
 
-// ==========================================
-// GUARDAR / ACTUALIZAR USUARIO
-// ==========================================
+// Guardar/actualizar usuario
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar_usuario'])) {
     $nombres = limpiarInput($_POST['nombres']);
     $apellidos = limpiarInput($_POST['apellidos']);

@@ -1,6 +1,6 @@
 <?php
 /**
- * Página de Registro - Sistema de Tickets Municipal
+ * Registro de usuarios
  */
 require_once __DIR__ . '/includes/functions.php';
 

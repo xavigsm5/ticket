@@ -1,6 +1,6 @@
 <?php
 /**
- * Dashboard - Panel de Tickets estilo Freshdesk Completo
+ * Dashboard principal - Panel de tickets
  */
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/freshdesk_functions.php';
@@ -604,29 +604,31 @@ $funcionarios = $ticket_actual ? obtenerFuncionarios(2) : [];
                                                 <strong><i class="bi bi-paperclip"></i> Archivos Adjuntos:</strong>
                                                 <div style="margin-top: 12px;">
                                                     <?php foreach ($adjuntos as $adj): 
-                                                        $extension = strtolower(pathinfo($adj['nombre_archivo'], PATHINFO_EXTENSION));
-                                                        $esImagen = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+                                                        $nombreArchivo = $adj['nombre_original'] ?? '';
+                                                        $extension = strtolower(pathinfo($nombreArchivo, PATHINFO_EXTENSION));
+                                                        $esImagen = $adj['es_imagen'] ?? in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+                                                        $urlDescarga = "../descargar-adjunto.php?id=" . $adj['id'];
                                                     ?>
                                                         <div style="margin-bottom: 12px;">
                                                             <?php if ($esImagen): ?>
                                                                 <div style="margin-bottom: 8px;">
-                                                                    <strong><?= htmlspecialchars($adj['nombre_archivo']) ?></strong>
+                                                                    <strong><?= htmlspecialchars($nombreArchivo) ?></strong>
                                                                     <?php if ($adj['tamano']): ?>
                                                                         <small style="color: #6c757d;">(<?= round($adj['tamano'] / 1024, 1) ?> KB)</small>
                                                                     <?php endif; ?>
                                                                 </div>
-                                                                <a href="/<?= $adj['ruta_archivo'] ?>" target="_blank">
-                                                                    <img src="/<?= $adj['ruta_archivo'] ?>" 
-                                                                         alt="<?= htmlspecialchars($adj['nombre_archivo']) ?>" 
+                                                                <a href="<?= $urlDescarga ?>" target="_blank">
+                                                                    <img src="<?= $urlDescarga ?>" 
+                                                                         alt="<?= htmlspecialchars($nombreArchivo) ?>" 
                                                                          style="max-width: 100%; max-height: 400px; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; display: block;">
                                                                 </a>
                                                                 <small style="color: #6c757d; font-size: 11px;">Haz clic en la imagen para verla en tamaño completo</small>
                                                             <?php else: ?>
-                                                                <a href="/<?= $adj['ruta_archivo'] ?>" target="_blank" 
+                                                                <a href="<?= $urlDescarga ?>" target="_blank" 
                                                                    style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border: 1px solid #dee2e6; border-radius: 4px; color: #0d6efd; text-decoration: none;">
                                                                     <i class="bi bi-file-earmark" style="font-size: 20px;"></i>
                                                                     <div>
-                                                                        <div><?= htmlspecialchars($adj['nombre_archivo']) ?></div>
+                                                                        <div><?= htmlspecialchars($nombreArchivo) ?></div>
                                                                         <?php if ($adj['tamano']): ?>
                                                                             <small style="color: #6c757d;"><?= round($adj['tamano'] / 1024, 1) ?> KB</small>
                                                                         <?php endif; ?>

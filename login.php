@@ -1,6 +1,6 @@
 <?php
 /**
- * Login - Sistema de Tickets Municipal
+ * Login del sistema
  */
 require_once __DIR__ . '/includes/functions.php';
 
@@ -8,10 +8,11 @@ iniciarSesionSegura();
 
 if (estaAutenticado()) {
     $usuario = obtenerUsuarioActual();
+    $baseUrl = getBaseUrl();
     if (in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
-        header('Location: /admin/dashboard.php');
+        header('Location: ' . $baseUrl . '/admin/dashboard.php');
     } else {
-        header('Location: /funcionario/mis-tickets.php');
+        header('Location: ' . $baseUrl . '/funcionario/mis-tickets.php');
     }
     exit;
 }
@@ -19,12 +20,7 @@ if (estaAutenticado()) {
 $error = '';
 $email = '';
 
-/**
- * Autenticar usuario mediante IMAP contra Microsoft 365
- * @param string $email Correo del usuario
- * @param string $password Contraseña del usuario
- * @return array ['success' => bool, 'error' => string|null]
- */
+// Autenticar contra M365 via IMAP
 function autenticarViaIMAP($email, $password) {
     $imapHost = 'outlook.office365.com';
     $imapPort = 993;
@@ -61,11 +57,7 @@ function autenticarViaIMAP($email, $password) {
     return ['success' => false, 'error' => $errorMsg];
 }
 
-/**
- * Obtener o crear usuario en la base de datos
- * @param string $email Correo del usuario autenticado
- * @return array|false Datos del usuario o false si falla
- */
+// Obtener usuario de BD o crear uno nuevo
 function obtenerOCrearUsuarioIMAP($email) {
     $db = Database::getInstance();
     
@@ -110,13 +102,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Por favor complete todos los campos.';
     } else {
         // Validar dominios permitidos (para pruebas)
-        $dominiosPermitidos = ['@quintanormal.cl', '@municipalidad.cl'];
+        $dominiosPermitidos = ['@quintanormal.cl', '@municipalidad.cl', '@caschile.cl'];
         $dominioValido = false;
         
         foreach ($dominiosPermitidos as $dominio) {
             if (substr(strtolower($email), -strlen($dominio)) === $dominio) {
                 $dominioValido = true;
                 break;
+            }
+        }
+        
+        // También permitir si el usuario ya existe en la base de datos (ej: soporte externo)
+        if (!$dominioValido) {
+            $db = Database::getInstance();
+            $usuarioExistente = $db->fetch("SELECT id FROM usuarios WHERE email = ? AND activo = TRUE", [$email]);
+            if ($usuarioExistente) {
+                $dominioValido = true;
             }
         }
         
@@ -147,17 +148,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $db->query("UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?", [$usuario['id']]);
                         
                         // Redirigir según rol
+                        $baseUrl = getBaseUrl();
                         if (in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
-                            header('Location: /admin/dashboard.php');
+                            header('Location: ' . $baseUrl . '/admin/dashboard.php');
                         } else {
-                            header('Location: /funcionario/mis-tickets.php');
+                            header('Location: ' . $baseUrl . '/funcionario/mis-tickets.php');
                         }
                         exit;
                     } else {
                         $error = 'Error al procesar la cuenta de usuario.';
                     }
                 } else {
-                    // Mostrar error específico de IMAP
                     $imapError = $authResult['error'] ?? '';
                     
                     if (stripos($imapError, 'AUTHENTICATE') !== false || stripos($imapError, 'LOGIN') !== false) {
@@ -182,10 +183,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $db->query("UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = ?", [$usuario['id']]);
                     
+                    $baseUrl = getBaseUrl();
                     if (in_array($usuario['rol'], ['admin', 'soporte_ti'])) {
-                        header('Location: /admin/dashboard.php');
+                        header('Location: ' . $baseUrl . '/admin/dashboard.php');
                     } else {
-                        header('Location: /funcionario/mis-tickets.php');
+                        header('Location: ' . $baseUrl . '/funcionario/mis-tickets.php');
                     }
                     exit;
                 } else {
