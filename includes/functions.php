@@ -87,6 +87,55 @@ function marcarNotificacionesLeidas($usuario_id)
     marcarTodasNotificacionesLeidas($usuario_id);
 }
 
+/**
+ * Lista de emails de funcionarios que son administradores de TI
+ * Estos usuarios obtienen rol 'soporte_ti' al autenticarse con Microsoft 365
+ */
+function obtenerAdministradoresM365() {
+    return [
+        'mario.perez@quintanormal.cl' => 'admin',
+        'cristian.beltrand@quintanormal.cl' => 'supervisor',
+        // Agregar más administradores aquí si es necesario:
+        // 'otro.admin@quintanormal.cl' => 'soporte_ti',
+    ];
+}
+
+/**
+ * Verifica si un usuario puede asignar tickets
+ * Solo admin y supervisor pueden asignar
+ */
+function puedeAsignarTickets($usuario = null) {
+    if (!$usuario) $usuario = obtenerUsuarioActual();
+    if (!$usuario) return false;
+    return in_array($usuario['rol'], ['admin', 'supervisor']);
+}
+
+/**
+ * Determina el rol para un usuario que inicia sesión con Microsoft 365
+ * @param string $email Email del usuario
+ * @return string Rol asignado ('soporte_ti' para administradores, 'funcionario' para otros)
+ */
+function obtenerRolParaUsuarioM365($email) {
+    $administradores = obtenerAdministradoresM365();
+    $emailLower = strtolower($email);
+    
+    if (isset($administradores[$emailLower])) {
+        return $administradores[$emailLower];
+    }
+    
+    return 'funcionario';
+}
+
+/**
+ * Verifica si un email es administrador de M365
+ * @param string $email
+ * @return bool
+ */
+function esAdministradorM365($email) {
+    $administradores = obtenerAdministradoresM365();
+    return isset($administradores[strtolower($email)]);
+}
+
 function tieneRol($roles)
 {
     $usuario = obtenerUsuarioActual();
@@ -149,6 +198,10 @@ function obtenerTickets($filtros = [], $limite = 50, $offset = 0)
         $where[] = "t.asignado_id = ?";
         $params[] = $filtros['asignado_id'];
     }
+    if (!empty($filtros['departamento_id'])) {
+        $where[] = "c.departamento_id = ?";
+        $params[] = $filtros['departamento_id'];
+    }
     if (!empty($filtros['busqueda'])) {
         $where[] = "(t.numero ILIKE ? OR t.asunto ILIKE ?)";
         $params[] = '%' . $filtros['busqueda'] . '%';
@@ -200,6 +253,26 @@ function crearTicket($datos)
     // Enviar notificación por correo a funcionarios de TI
     if ($ticketCreado) {
         enviarNotificacionNuevoTicketATI($ticketCreado, $datos);
+        
+        // Crear notificaciones internas para los funcionarios del departamento
+        if (!empty($datos['categoria_id'])) {
+            $catDep = $db->fetch("SELECT departamento_id FROM categorias WHERE id = ?", [$datos['categoria_id']]);
+            if ($catDep && $catDep['departamento_id']) {
+                $funcionariosDep = $db->fetchAll(
+                    "SELECT id FROM usuarios WHERE departamento_id = ? AND rol IN ('soporte_ti', 'supervisor', 'admin') AND activo = TRUE AND id != ?",
+                    [$catDep['departamento_id'], $datos['ciudadano_id']]
+                );
+                foreach ($funcionariosDep as $fd) {
+                    crearNotificacion(
+                        $fd['id'],
+                        "Nuevo Ticket #{$ticketCreado['numero']}",
+                        "Se ha creado un nuevo ticket: " . substr($datos['asunto'], 0, 80),
+                        'info',
+                        $ticketCreado['id']
+                    );
+                }
+            }
+        }
     }
     
     return $ticketCreado;
@@ -249,7 +322,23 @@ function enviarNotificacionNuevoTicketATI($ticket, $datos)
             }
         }
         
-        // 3. Agregar el administrador principal
+        // 3. Notificar a todos los funcionarios del departamento del ticket
+        if (!empty($datos['categoria_id'])) {
+            $catDep = $db->fetch("SELECT departamento_id FROM categorias WHERE id = ?", [$datos['categoria_id']]);
+            if ($catDep && $catDep['departamento_id']) {
+                $funcionariosDep = $db->fetchAll(
+                    "SELECT email FROM usuarios WHERE departamento_id = ? AND rol IN ('soporte_ti', 'supervisor') AND activo = TRUE",
+                    [$catDep['departamento_id']]
+                );
+                foreach ($funcionariosDep as $fd) {
+                    if (!in_array($fd['email'], $correosFuncionarios)) {
+                        $correosFuncionarios[] = $fd['email'];
+                    }
+                }
+            }
+        }
+        
+        // 4. Agregar el administrador principal
         $admin = $db->fetch(
             "SELECT email FROM usuarios WHERE rol = 'admin' AND activo = TRUE ORDER BY id ASC LIMIT 1"
         );
@@ -472,7 +561,7 @@ function obtenerTodasCategorias()
 function obtenerFuncionarios($dep_id = null)
 {
     $db = Database::getInstance();
-    return $dep_id ? $db->fetchAll("SELECT id, nombres, apellidos, email, rol FROM usuarios WHERE rol IN ('soporte_ti', 'admin') AND activo = TRUE AND departamento_id = ?", [$dep_id]) : $db->fetchAll("SELECT id, nombres, apellidos, email, rol FROM usuarios WHERE rol IN ('soporte_ti', 'admin') AND activo = TRUE");
+    return $dep_id ? $db->fetchAll("SELECT id, nombres, apellidos, email, rol FROM usuarios WHERE rol IN ('soporte_ti', 'admin', 'supervisor') AND activo = TRUE AND departamento_id = ?", [$dep_id]) : $db->fetchAll("SELECT id, nombres, apellidos, email, rol FROM usuarios WHERE rol IN ('soporte_ti', 'admin', 'supervisor') AND activo = TRUE");
 }
 
 function obtenerEstadisticas()
@@ -496,6 +585,18 @@ function obtenerEstadisticasUsuario($usuario_id)
         'en_proceso' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE estado_id IN (2,3) AND asignado_id = ?", [$usuario_id])['total'],
         'resueltos' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE estado_id IN (5,6) AND asignado_id = ?", [$usuario_id])['total'],
         'hoy' => $db->fetch("SELECT COUNT(*) as total FROM tickets WHERE DATE(created_at) = CURRENT_DATE AND asignado_id = ?", [$usuario_id])['total']
+    ];
+}
+
+function obtenerEstadisticasDepartamento($departamento_id)
+{
+    $db = Database::getInstance();
+    return [
+        'total' => $db->fetch("SELECT COUNT(*) as total FROM tickets t JOIN categorias c ON t.categoria_id = c.id WHERE c.departamento_id = ?", [$departamento_id])['total'],
+        'pendientes' => $db->fetch("SELECT COUNT(*) as total FROM tickets t JOIN categorias c ON t.categoria_id = c.id WHERE t.estado_id = 1 AND c.departamento_id = ?", [$departamento_id])['total'],
+        'en_proceso' => $db->fetch("SELECT COUNT(*) as total FROM tickets t JOIN categorias c ON t.categoria_id = c.id WHERE t.estado_id IN (2,3) AND c.departamento_id = ?", [$departamento_id])['total'],
+        'resueltos' => $db->fetch("SELECT COUNT(*) as total FROM tickets t JOIN categorias c ON t.categoria_id = c.id WHERE t.estado_id IN (5,6) AND c.departamento_id = ?", [$departamento_id])['total'],
+        'hoy' => $db->fetch("SELECT COUNT(*) as total FROM tickets t JOIN categorias c ON t.categoria_id = c.id WHERE DATE(t.created_at) = CURRENT_DATE AND c.departamento_id = ?", [$departamento_id])['total']
     ];
 }
 

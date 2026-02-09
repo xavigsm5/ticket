@@ -4,7 +4,7 @@
  */
 require_once __DIR__ . '/../includes/functions.php';
 
-requiereRol(['admin', 'supervisor', 'funcionario']);
+requiereRol(['admin', 'supervisor', 'funcionario', 'soporte_ti']);
 
 $usuario = obtenerUsuarioActual();
 $estados = obtenerEstados();
@@ -22,10 +22,10 @@ if (!empty($_GET['departamento']))
 if (!empty($_GET['busqueda']))
     $filtros['busqueda'] = $_GET['busqueda'];
 
-// Comentado para permitir que funcionarios vean todos los tickets (testing)
-// if ($usuario['rol'] === 'funcionario') {
-//     $filtros['asignado_id'] = $usuario['id'];
-// }
+// soporte_ti solo ve tickets de su área (departamento)
+if ($usuario['rol'] === 'soporte_ti' && $usuario['departamento_id']) {
+    $filtros['departamento_id'] = $usuario['departamento_id'];
+}
 
 $tickets = obtenerTickets($filtros, 100);
 
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion_masiva'])) {
     if (!empty($ids)) {
         $db = Database::getInstance();
         foreach ($ids as $id) {
-            if ($accion === 'asignarme') {
+            if ($accion === 'asignarme' && puedeAsignarTickets($usuario)) {
                 $db->query("UPDATE tickets SET asignado_id = ?, updated_at = NOW() WHERE id = ?", [$usuario['id'], $id]);
             } elseif (is_numeric($accion)) {
                 $db->query("UPDATE tickets SET estado_id = ?, updated_at = NOW() WHERE id = ?", [(int) $accion, $id]);
@@ -313,7 +313,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion_masiva'])) {
                                 <span style="font-size: 0.875rem; color: var(--gris-600);">Con seleccionados:</span>
                                 <select name="accion_masiva" class="form-control" style="width: auto;">
                                     <option value="">Seleccionar acción</option>
+                                    <?php if (puedeAsignarTickets($usuario)): ?>
                                     <option value="asignarme">Asignarme</option>
+                                    <?php endif; ?>
                                     <optgroup label="Cambiar estado a:">
                                         <?php foreach ($estados as $e): ?>
                                             <option value="<?= $e['id'] ?>"><?= htmlspecialchars($e['nombre']) ?></option>

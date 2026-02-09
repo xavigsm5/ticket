@@ -5,7 +5,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/freshdesk_functions.php';
 
-requiereRol(['admin', 'supervisor', 'funcionario']);
+requiereRol(['admin', 'supervisor', 'funcionario', 'soporte_ti']);
 
 $usuario = obtenerUsuarioActual();
 $id = (int) ($_GET['id'] ?? 0);
@@ -404,7 +404,10 @@ $respuestas_predefinidas = obtenerRespuestasPredefinidas(null, $usuario['id']);
                                     </select>
                                 </div>
 
-                                <?php if (tieneRol(['admin', 'supervisor'])): ?>
+                                <?php 
+                                // Solo admin y supervisor pueden asignar tickets
+                                $puedeAsignar = puedeAsignarTickets($usuario);
+                                if ($puedeAsignar): ?>
                                 <div class="form-grupo">
                                     <label class="form-label">Asignar a</label>
                                     <select name="asignado_id" class="form-control">
@@ -441,7 +444,10 @@ $respuestas_predefinidas = obtenerRespuestasPredefinidas(null, $usuario['id']);
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <?php if (tieneRol(['admin', 'supervisor'])): ?>
+                        <?php 
+                        // Solo admin y supervisor pueden auto-asignarse tickets
+                        $puedeAutoAsignar = puedeAsignarTickets($usuario);
+                        if ($puedeAutoAsignar): ?>
                         <div class="sidebar-seccion">
                             <div class="sidebar-seccion-titulo">Acciones Rápidas</div>
                             <form method="POST" action=""

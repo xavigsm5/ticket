@@ -5,7 +5,7 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/freshdesk_functions.php';
 
-requiereRol(['admin', 'supervisor', 'funcionario']);
+requiereRol(['admin', 'supervisor', 'funcionario', 'soporte_ti']);
 
 $usuario = obtenerUsuarioActual();
 

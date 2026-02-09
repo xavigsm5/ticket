@@ -65,6 +65,12 @@ function obtenerOCrearUsuarioIMAP($email) {
     $usuario = $db->fetch("SELECT * FROM usuarios WHERE email = ? AND activo = TRUE", [$email]);
     
     if ($usuario) {
+        // Si el usuario existe pero es administrador M365, verificar que tenga el rol correcto
+        if (esAdministradorM365($email) && $usuario['rol'] === 'funcionario') {
+            $nuevoRol = obtenerRolParaUsuarioM365($email);
+            $db->query("UPDATE usuarios SET rol = ? WHERE id = ?", [$nuevoRol, $usuario['id']]);
+            $usuario['rol'] = $nuevoRol;
+        }
         return $usuario;
     }
     
@@ -75,15 +81,18 @@ function obtenerOCrearUsuarioIMAP($email) {
     $nombres = ucfirst($partes[0] ?? 'Usuario');
     $apellidos = isset($partes[1]) ? ucfirst($partes[1]) : 'Microsoft365';
     
-    // Crear usuario con rol 'funcionario'
+    // Determinar rol según si es administrador M365 o funcionario normal
+    $rol = obtenerRolParaUsuarioM365($email);
+    
+    // Crear usuario con el rol correspondiente
     $passwordHash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
     $rutTemporal = 'M365-' . time() . '-' . rand(1000, 9999);
     
     try {
         $db->query(
             "INSERT INTO usuarios (rut, email, password, nombres, apellidos, rol, activo, email_verificado) 
-             VALUES (?, ?, ?, ?, ?, 'funcionario', TRUE, TRUE)",
-            [$rutTemporal, $email, $passwordHash, $nombres, $apellidos]
+             VALUES (?, ?, ?, ?, ?, ?, TRUE, TRUE)",
+            [$rutTemporal, $email, $passwordHash, $nombres, $apellidos, $rol]
         );
         
         // Obtener el usuario recién creado

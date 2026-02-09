@@ -5,13 +5,13 @@
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/freshdesk_functions.php';
 
-requiereRol(['admin', 'soporte_ti']);
+requiereRol(['admin', 'supervisor', 'soporte_ti']);
 
 $usuario = obtenerUsuarioActual();
 
-// Si es soporte_ti, mostrar solo estadísticas de sus tickets asignados
+// Si es soporte_ti, mostrar solo estadísticas de tickets de su departamento
 if ($usuario['rol'] === 'soporte_ti') {
-    $stats = obtenerEstadisticasUsuario($usuario['id']);
+    $stats = $usuario['departamento_id'] ? obtenerEstadisticasDepartamento($usuario['departamento_id']) : obtenerEstadisticasUsuario($usuario['id']);
 } else {
     $stats = obtenerEstadisticas();
 }
@@ -32,10 +32,10 @@ if ($filtro_estado)
 if ($filtro_busqueda)
     $filtros['busqueda'] = $filtro_busqueda;
 
-// Comentado para permitir que funcionarios vean todos los tickets (testing)
-// if ($usuario['rol'] === 'funcionario') {
-//     $filtros['asignado_id'] = $usuario['id'];
-// }
+// soporte_ti solo ve tickets de su área (departamento)
+if ($usuario['rol'] === 'soporte_ti' && $usuario['departamento_id']) {
+    $filtros['departamento_id'] = $usuario['departamento_id'];
+}
 
 $tickets = obtenerTickets($filtros, 50);
 $estados = obtenerEstados();
@@ -133,8 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $prioridades = obtenerPrioridades();
-// Obtener solo funcionarios del Área de Informática (departamento 2)
-$funcionarios = $ticket_actual ? obtenerFuncionarios(2) : [];
+// Obtener funcionarios del departamento del ticket actual
+$funcionarios = $ticket_actual ? obtenerFuncionarios($ticket_actual['departamento_id']) : [];
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -440,7 +440,7 @@ $funcionarios = $ticket_actual ? obtenerFuncionarios(2) : [];
                 <div class="tickets-lista">
                     <div class="tickets-lista-header">
                         <span class="tickets-lista-titulo">
-                            Todos los Tickets (<?= count($tickets) ?>)
+                            <?= $usuario['rol'] === 'soporte_ti' ? 'Tickets de mi Área' : 'Todos los Tickets' ?> (<?= count($tickets) ?>)
                         </span>
                     </div>
                     <div class="tickets-filtros">

@@ -141,6 +141,14 @@ try {
         
         if ($usuario) {
             // Usuario existente: Iniciar sesión
+            
+            // Verificar si es administrador M365 y actualizar rol si es necesario
+            if (esAdministradorM365($email) && $usuario['rol'] === 'funcionario') {
+                $nuevoRol = obtenerRolParaUsuarioM365($email);
+                $db->query("UPDATE usuarios SET rol = ? WHERE id = ?", [$nuevoRol, $usuario['id']]);
+                $usuario['rol'] = $nuevoRol;
+            }
+            
             $_SESSION['usuario_id'] = $usuario['id'];
             $_SESSION['usuario_rol'] = $usuario['rol'];
             $_SESSION['usuario_nombre'] = $usuario['nombres'] . ' ' . $usuario['apellidos'];
@@ -159,7 +167,10 @@ try {
             exit;
             
         } else {
-            // Usuario nuevo: Crear automáticamente como funcionario
+            // Usuario nuevo: Crear automáticamente
+            
+            // Determinar rol: soporte_ti si es administrador M365, funcionario si no
+            $rolNuevoUsuario = obtenerRolParaUsuarioM365($email);
             
             // Generar contraseña aleatoria (el usuario no la usará, usa Microsoft)
             $passwordAleatorio = bin2hex(random_bytes(16));
@@ -168,9 +179,9 @@ try {
             // Generar RUT temporal único (máximo 12 caracteres)
             $rutTemporal = 'AZ' . substr(time(), -8) . rand(10, 99);
             
-            // Insertar nuevo usuario
+            // Insertar nuevo usuario con el rol correspondiente
             $sql = "INSERT INTO usuarios (rut, email, password, nombres, apellidos, rol, activo, ultimo_acceso)
-                    VALUES (?, ?, ?, ?, ?, 'funcionario', TRUE, CURRENT_TIMESTAMP)
+                    VALUES (?, ?, ?, ?, ?, ?, TRUE, CURRENT_TIMESTAMP)
                     RETURNING id";
             
             $stmt = $db->query($sql, [
@@ -178,7 +189,8 @@ try {
                 $email,
                 $passwordHash,
                 $nombres,
-                $apellidos
+                $apellidos,
+                $rolNuevoUsuario
             ]);
             
             $nuevoUsuario = $stmt->fetch();
@@ -186,15 +198,14 @@ try {
             if ($nuevoUsuario) {
                 // Iniciar sesión con el nuevo usuario
                 $_SESSION['usuario_id'] = $nuevoUsuario['id'];
-                $_SESSION['usuario_rol'] = 'funcionario';
+                $_SESSION['usuario_rol'] = $rolNuevoUsuario;
                 $_SESSION['usuario_nombre'] = $nombres . ' ' . $apellidos;
                 
                 // Guardar tokens OAuth2 del nuevo usuario
                 guardarTokensOAuth($db, $nuevoUsuario['id'], $tokenValue, $refreshToken, $expiresAt);
                 
-                // Redirigir al dashboard de funcionario
-                $baseUrl = $_ENV['APP_URL'] ?? '';
-                header('Location: ' . $baseUrl . '/funcionario/mis-tickets.php');
+                // Redirigir según el rol del usuario (admin/soporte_ti va a admin, funcionario a mis-tickets)
+                redirigirSegunRol($rolNuevoUsuario);
                 exit;
             } else {
                 mostrarError('Error al crear la cuenta de usuario.');
@@ -257,7 +268,7 @@ function guardarTokensOAuth($db, $usuario_id, $accessToken, $refreshToken, $expi
 function redirigirSegunRol($rol) {
     $baseUrl = $_ENV['APP_URL'] ?? '';
     
-    if (in_array($rol, ['admin', 'soporte_ti'])) {
+    if (in_array($rol, ['admin', 'supervisor', 'soporte_ti'])) {
         header('Location: ' . $baseUrl . '/admin/dashboard.php');
     } else {
         header('Location: ' . $baseUrl . '/funcionario/mis-tickets.php');
